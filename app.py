@@ -2,6 +2,8 @@ from flask import Flask, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from routes.vocab import vocab_bp
+from models import User, VocabEntry, QuizRound, QuizAnswer, Card, UserCard
+
 
 db = SQLAlchemy()
 
