@@ -1,0 +1,32 @@
+# --- Python / virtualenv ---
+venv/
+.venv/
+env/
+ENV/
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+*.pdb
+*.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.cache/
+
+# --- Flask / local databases ---
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Logs & temp files ---
+*.log
+*.tmp
+*.swp
+*.swo
+
+# --- PyCharm / IntelliJ IDEA ---
+.idea/
+*.iml
+
