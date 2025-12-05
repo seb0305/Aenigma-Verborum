@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Aenigma prototype</title>
+</head>
+<body>
+  <h1>Aenigma Prototype</h1>
+
+  <button id="btnHomeVocab" class="nav-btn">My Vocab Book</button>
+  <button id="btnHomeQuiz" class="nav-btn">Start Quiz</button>
+  <button id="btnHomeCards" class="nav-btn">My Cards</button>
+
+  <section id="vocabSection" style="display:none;">
+    <h2>Vocab Book</h2>
+    <form id="addVocabForm">
+      <input name="latin" placeholder="Latin" required>
+      <input name="german" placeholder="German (optional)">
+      <button type="submit">Add</button>
+    </form>
+    <table id="vocabTable">
+      <thead><tr><th>Latin</th><th>German</th><th>Accuracy</th><th>Card</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section id="quizSection" style="display:none;">
+    <h2>Quiz</h2>
+    <div id="quizWord"></div>
+    <input id="quizAnswer" placeholder="German translation">
+    <button id="btnSubmitAnswer">Submit</button>
+    <div id="quizFeedback"></div>
+    <button id="btnNextQuestion" style="display:none;">Next</button>
+  </section>
+
+  <section id="cardsSection" style="display:none;">
+    <h2>My Cards</h2>
+    <div id="cardsGrid"></div>
+  </section>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
