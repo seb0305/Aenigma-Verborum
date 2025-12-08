@@ -1,0 +1,139 @@
+body {
+  font-family: system-ui, sans-serif;
+  background: #0f172a;
+  color: #e5e7eb;
+  margin: 0;
+}
+
+header {
+  padding: 1rem 1.5rem;
+  background: #020617;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+.nav-bar {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.nav-btn {
+  border: none;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  background: #1f2937;
+  color: #e5e7eb;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.nav-btn:hover {
+  background: #374151;
+  transform: translateY(-1px);
+}
+
+.nav-btn-active {
+  background: #4f46e5;
+}
+
+main {
+  padding: 1.5rem;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.panel {
+  display: none;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+}
+
+.panel-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Vocab table */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+thead {
+  background: #020617;
+}
+
+th, td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #1f2937;
+}
+
+tr:nth-child(even) {
+  background: #020617;
+}
+
+tr:nth-child(odd) {
+  background: #020617;
+}
+
+tr:hover {
+  background: #111827;
+}
+
+#cardsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.card-item {
+  background: #020617;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+.card-item img {
+  width: 100%;
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #1f2937;
+  font-size: 0.75rem;
+  color: #a5b4fc;
+}
+
+input, button {
+  font-family: inherit;
+}
+
+input {
+  background: #020617;
+  border: 1px solid #374151;
+  border-radius: 0.375rem;
+  padding: 0.4rem 0.6rem;
+  color: #e5e7eb;
+}
+
+input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 1px #4f46e5;
+}

@@ -1,11 +1,10 @@
 from flask import Flask, send_from_directory
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
-from routes.vocab import vocab_bp
+from extensions import db
 from models import User, VocabEntry, QuizRound, QuizAnswer, Card, UserCard
-
-
-db = SQLAlchemy()
+from routes.vocab import vocab_bp
+from routes.quiz import quiz_bp
+from routes.cards import cards_bp
 
 def create_app():
     app = Flask(__name__)
@@ -17,6 +16,8 @@ def create_app():
     CORS(app)  # allow local frontend to call API
 
     app.register_blueprint(vocab_bp, url_prefix="/api/vocab")
+    app.register_blueprint(quiz_bp, url_prefix="/api/quiz")
+    app.register_blueprint(cards_bp, url_prefix="/api/cards")
 
     with app.app_context():
         db.create_all()

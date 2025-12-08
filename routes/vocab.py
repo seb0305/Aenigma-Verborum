@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from extensions import db
 from models import VocabEntry
 
 vocab_bp = Blueprint("vocab", __name__)
