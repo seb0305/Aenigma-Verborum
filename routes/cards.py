@@ -5,8 +5,10 @@ from models import UserCard, Card, VocabEntry
 cards_bp = Blueprint("cards", __name__)
 
 def get_current_user_id():
+    # TODO: implement user management
     return 1
 
+# returns each card for current user
 @cards_bp.get("/")
 def list_cards():
     user_id = get_current_user_id()

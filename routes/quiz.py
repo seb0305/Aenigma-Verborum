@@ -20,6 +20,9 @@ def start_quiz():
 def next_questions():
     user_id = get_current_user_id()
 
+    # weak word condition: accuracy below 70% or fewer than 3 total answers
+    # limit to 10 vocabs
+
     weak = VocabEntry.query.filter(
         VocabEntry.user_id == user_id,
         (VocabEntry.accuracy_percent < 70) | (VocabEntry.total_answers < 3)
@@ -41,11 +44,12 @@ def answer_question():
     quiz_round_id = data.get("quiz_round_id")
     vocab_entry_id = data.get("vocab_entry_id")
     user_answer = (data.get("user_answer") or "").strip().lower()
-
+    # Reads the relevant VocabEntry row
     entry = VocabEntry.query.filter_by(id=vocab_entry_id, user_id=user_id).first_or_404()
 
     is_correct = user_answer == entry.german_translation.strip().lower()
 
+    # Creates a QuizAnswer row linking the quiz round and vocab entry
     qa = QuizAnswer(
         quiz_round_id=quiz_round_id,
         vocab_entry_id=vocab_entry_id,
@@ -53,6 +57,7 @@ def answer_question():
     )
     db.session.add(qa)
 
+    # Updates the stats
     entry.total_answers += 1
     if is_correct:
         entry.correct_answers += 1
@@ -62,6 +67,7 @@ def answer_question():
     card_unlocked = False
     card_id = None
 
+    # if criteria met, create bronze Card row and UserCard row
     if is_correct and not entry.has_bronze_card and entry.total_answers >= 3 and entry.accuracy_percent >= 80:
         # TODO: integrate real AI image + text here
         description = f"AI flavor text for {entry.latin_word}"
@@ -96,6 +102,7 @@ def answer_question():
         "card_id": card_id,
     })
 
+# lets the DB store complete round histories
 @quiz_bp.post("/finish")
 def finish_quiz():
     data = request.get_json()

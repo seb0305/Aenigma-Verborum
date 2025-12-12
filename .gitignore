@@ -1,6 +1,7 @@
 # --- Python / virtualenv ---
 venv/
 .venv/
+.env
 env/
 ENV/
 *.pyc

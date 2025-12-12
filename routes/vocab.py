@@ -8,6 +8,7 @@ def get_current_user_id():
     # TODO: replace with real auth later
     return 1
 
+# read my vocab entries
 @vocab_bp.get("/")
 def list_vocab():
     user_id = get_current_user_id()
@@ -23,6 +24,7 @@ def list_vocab():
         for e in entries
     ])
 
+# new VocabEntry-row for the current user
 @vocab_bp.post("/")
 def add_vocab():
     user_id = get_current_user_id()

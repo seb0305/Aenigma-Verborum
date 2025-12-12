@@ -2,8 +2,17 @@ console.log("script.js loaded");
 
 const API_BASE = "http://localhost:5000/api";
 
+/*
+Vocab section calls /api/vocab/ to list and create VocabEntry rows
+ */
 const vocabSection = document.getElementById("vocabSection");
+/*
+Quiz section calls /api/quiz/
+ */
 const quizSection = document.getElementById("quizSection");
+/*
+Cards section calls /api/cards/ to read the joined UserCard + Card + VocabEntry data
+ */
 const cardsSection = document.getElementById("cardsSection");
 
 document.getElementById("btnHomeVocab").onclick = () => showSection("vocab");

@@ -1,6 +1,11 @@
 from datetime import datetime
 from extensions import db
 
+"""
+SQLAlchemy models that describe the domain: 
+users, vocab, quizzes, answers, and cards
+"""
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
