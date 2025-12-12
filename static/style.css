@@ -51,9 +51,6 @@ main {
 }
 
 .panel {
-  display: none;
-  opacity: 0;
-  transform: translateY(6px);
   transition: opacity 0.15s ease-out, transform 0.15s ease-out;
 }
 
@@ -136,4 +133,19 @@ input:focus {
   outline: none;
   border-color: #4f46e5;
   box-shadow: 0 0 0 1px #4f46e5;
+}
+
+.small-btn {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  margin: 0 0.1rem;
+  border-radius: 0.25rem;
+  border: 1px solid #374151;
+  background: #111827;
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
+.small-btn:hover {
+  background: #1f2937;
 }

@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from flask import Flask, send_from_directory
 from flask_cors import CORS
 from extensions import db
@@ -6,10 +10,9 @@ from models import User, VocabEntry, QuizRound, QuizAnswer, Card, UserCard
 from routes.vocab import vocab_bp
 from routes.quiz import quiz_bp
 from routes.cards import cards_bp
-from dotenv import load_dotenv
 from openai import OpenAI
 
-load_dotenv()
+
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")

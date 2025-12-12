@@ -16,7 +16,10 @@ def list_cards():
         db.session.query(UserCard, Card, VocabEntry)
         .join(Card, UserCard.card_id == Card.id)
         .join(VocabEntry, Card.vocab_entry_id == VocabEntry.id)
-        .filter(UserCard.user_id == user_id)
+        .filter(
+            UserCard.user_id == user_id,
+            Card.rarity == "bronze",
+        )
         .all()
     )
 
@@ -30,5 +33,6 @@ def list_cards():
             "image_url": card.image_url,
             "latin_word": vocab.latin_word,
             "german_translation": vocab.german_translation,
+            "accuracy_percent": vocab.accuracy_percent,
         })
     return jsonify(result)

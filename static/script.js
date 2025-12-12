@@ -2,6 +2,10 @@ console.log("script.js loaded");
 
 const API_BASE = "http://localhost:5000/api";
 
+let quizRoundId = null;
+let quizQuestions = [];
+let currentIndex = 0;
+
 /*
 Vocab section calls /api/vocab/ to list and create VocabEntry rows
  */
@@ -15,16 +19,23 @@ Cards section calls /api/cards/ to read the joined UserCard + Card + VocabEntry 
  */
 const cardsSection = document.getElementById("cardsSection");
 
-document.getElementById("btnHomeVocab").onclick = () => showSection("vocab");
+// Navigation wiring
+document.getElementById("btnHomeVocab").onclick = () => {
+  showSection("vocab");
+  loadVocab();
+};
 document.getElementById("btnHomeQuiz").onclick = () => startQuizFlow();
 document.getElementById("btnHomeCards").onclick = () => loadCards();
 
+// Show/hide sections
 function showSection(name) {
+  console.log("showSection", name);
   vocabSection.style.display = name === "vocab" ? "block" : "none";
-  quizSection.style.display = name === "quiz" ? "block" : "none";
+  quizSection.style.display  = name === "quiz"  ? "block" : "none";
   cardsSection.style.display = name === "cards" ? "block" : "none";
 }
 
+// Load vocab table
 async function loadVocab() {
   const res = await fetch(`${API_BASE}/vocab/`);
   const data = await res.json();
@@ -37,12 +48,75 @@ async function loadVocab() {
       <td>${row.german_translation}</td>
       <td>${row.accuracy_percent.toFixed(1)}%</td>
       <td>${row.has_bronze_card ? "🟤" : ""}</td>
+      <td>
+        <button class="small-btn" data-action="edit" data-id="${row.id}">Edit</button>
+        <button class="small-btn" data-action="delete" data-id="${row.id}">Delete</button>
+      </td>
     `;
     tbody.appendChild(tr);
   });
-  showSection("vocab");
+
+  // attach click events for edit/delete
+  tbody.querySelectorAll("button[data-action='edit']").forEach(btn => {
+    btn.onclick = () => editVocab(btn.dataset.id);
+  });
+  tbody.querySelectorAll("button[data-action='delete']").forEach(btn => {
+    btn.onclick = () => deleteVocab(btn.dataset.id);
+  });
 }
 
+async function editVocab(id) {
+  // simple prompt-based editing for Milestone 1
+  const currentRow = Array.from(document.querySelectorAll("#vocabTable tbody tr"))
+    .find(tr => tr.querySelector("button[data-id='" + id + "']"));
+
+  if (!currentRow) return;
+
+  const latinCell = currentRow.children[0];
+  const germanCell = currentRow.children[1];
+
+  const currentLatin = latinCell.textContent;
+  const currentGerman = germanCell.textContent;
+
+  const newLatin = prompt("Edit Latin word:", currentLatin);
+  if (newLatin === null) return; // cancel
+
+  const newGerman = prompt("Edit German translation:", currentGerman);
+  if (newGerman === null) return; // cancel
+
+  const res = await fetch(`${API_BASE}/vocab/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      latin_word: newLatin,
+      german_translation: newGerman
+    })
+  });
+
+  if (!res.ok) {
+    alert("Error updating vocab entry.");
+    return;
+  }
+
+  await loadVocab();
+}
+
+async function deleteVocab(id) {
+  if (!confirm("Really delete this vocab entry?")) return;
+
+  const res = await fetch(`${API_BASE}/vocab/${id}`, {
+    method: "DELETE"
+  });
+
+  if (!res.ok) {
+    alert("Error deleting vocab entry.");
+    return;
+  }
+
+  await loadVocab();
+}
+
+// Add vocab form
 document.getElementById("addVocabForm").onsubmit = async (e) => {
   e.preventDefault();
   const latin = e.target.latin.value;
@@ -58,70 +132,95 @@ document.getElementById("addVocabForm").onsubmit = async (e) => {
   });
   const data = await res.json();
 
+
   if (data.need_translation_choice) {
     alert("AI suggestions: " + data.suggestions.join(", "));
-    // For M1 you can manually type the chosen one and submit again
   } else {
     e.target.reset();
     loadVocab();
   }
 };
 
-
-let quizRoundId = null;
-let quizQuestions = [];
-let currentIndex = 0;
-
+// Start quiz (multiple choice)
 async function startQuizFlow() {
-  // start round
+  console.log("startQuizFlow called");
   const startRes = await fetch(`${API_BASE}/quiz/start`, { method: "POST" });
   const startData = await startRes.json();
   quizRoundId = startData.quiz_round_id;
 
   const qRes = await fetch(`${API_BASE}/quiz/next`);
   quizQuestions = await qRes.json();
+  console.log("quizQuestions:", quizQuestions);
+
   currentIndex = 0;
 
-  if (quizQuestions.length === 0) {
-    alert("No weak words yet. Add vocab first.");
+  if (!quizQuestions || quizQuestions.length === 0) {
+    alert("No quiz questions available. Add vocab and/or lower accuracy first.");
     return;
   }
+
   showSection("quiz");
   showCurrentQuestion();
 }
 
+// Render one quiz question
 function showCurrentQuestion() {
+  console.log("showCurrentQuestion", currentIndex, quizQuestions[currentIndex]);
   const q = quizQuestions[currentIndex];
-  document.getElementById("quizWord").textContent = q.latin_word;
-  document.getElementById("quizAnswer").value = "";
-  document.getElementById("quizFeedback").textContent = "";
-  document.getElementById("btnNextQuestion").style.display = "none";
+
+  const wordDiv = document.getElementById("quizWord");
+  const optionsDiv = document.getElementById("quizOptions");
+  const feedbackDiv = document.getElementById("quizFeedback");
+  const nextBtn = document.getElementById("btnNextQuestion");
+
+  console.log("DOM quiz elements:", wordDiv, optionsDiv, feedbackDiv, nextBtn);
+
+  wordDiv.textContent = q.latin_word;
+  feedbackDiv.textContent = "";
+  nextBtn.style.display = "none";
+
+  optionsDiv.innerHTML = "";
+  q.options.forEach(opt => {
+    const btn = document.createElement("button");
+    btn.textContent = opt;
+    btn.className = "quiz-option-btn";
+    btn.onclick = () => submitChoice(opt, q);
+    optionsDiv.appendChild(btn);
+  });
 }
 
-document.getElementById("btnSubmitAnswer").onclick = async () => {
-  const q = quizQuestions[currentIndex];
-  const ans = document.getElementById("quizAnswer").value;
-
+// Handle answer click
+async function submitChoice(selectedOption, q) {
   const res = await fetch(`${API_BASE}/quiz/answer`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       quiz_round_id: quizRoundId,
       vocab_entry_id: q.id,
-      user_answer: ans
+      selected_option: selectedOption
     })
   });
   const data = await res.json();
 
-  let msg = data.correct ? "Correct!" : `Wrong. Correct: ${q.german_translation}`;
+  let msg = data.correct ? "Correct!" : "Wrong.";
   msg += ` | Accuracy now: ${data.accuracy_percent.toFixed(1)}%`;
-  if (data.card_unlocked) {
-    msg += " | Bronze card unlocked!";
-  }
-  document.getElementById("quizFeedback").textContent = msg;
-  document.getElementById("btnNextQuestion").style.display = "inline-block";
-};
 
+  if (data.card_change === "created") {
+    msg += " | Bronze card unlocked!";
+  } else if (data.card_change === "removed") {
+    msg += " | Bronze card lost (accuracy below 90%).";
+  }
+
+  document.getElementById("quizFeedback").textContent = msg;
+
+  // Disable buttons after answer
+  const optionButtons = document.querySelectorAll(".quiz-option-btn");
+  optionButtons.forEach(b => b.disabled = true);
+
+  document.getElementById("btnNextQuestion").style.display = "inline-block";
+}
+
+// Next question button
 document.getElementById("btnNextQuestion").onclick = async () => {
   currentIndex++;
   if (currentIndex >= quizQuestions.length) {
@@ -132,12 +231,13 @@ document.getElementById("btnNextQuestion").onclick = async () => {
     });
     alert("Quiz finished!");
     loadVocab();
+    showSection("vocab");
   } else {
     showCurrentQuestion();
   }
 };
 
-
+// Load cards
 async function loadCards() {
   const res = await fetch(`${API_BASE}/cards/`);
   const cards = await res.json();
@@ -156,5 +256,6 @@ async function loadCards() {
   showSection("cards");
 }
 
-// auto-load vocab first
+// initial load
 loadVocab();
+showSection("vocab");

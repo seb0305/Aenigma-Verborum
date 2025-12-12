@@ -19,20 +19,28 @@
       <input name="german" placeholder="German (optional)">
       <button type="submit">Add</button>
     </form>
-    <table id="vocabTable">
-      <thead><tr><th>Latin</th><th>German</th><th>Accuracy</th><th>Card</th></tr></thead>
-      <tbody></tbody>
-    </table>
+<table id="vocabTable">
+  <thead>
+    <tr>
+      <th>Latin</th>
+      <th>German</th>
+      <th>Accuracy</th>
+      <th>Card</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
   </section>
 
-  <section id="quizSection" style="display:none;">
-    <h2>Quiz</h2>
-    <div id="quizWord"></div>
-    <input id="quizAnswer" placeholder="German translation">
-    <button id="btnSubmitAnswer">Submit</button>
-    <div id="quizFeedback"></div>
-    <button id="btnNextQuestion" style="display:none;">Next</button>
-  </section>
+<section id="quizSection" class="panel">
+  <h2>Quiz</h2>
+  <div id="quizWord"></div>
+  <div id="quizOptions"></div>
+  <div id="quizFeedback"></div>
+  <button id="btnNextQuestion" style="display:none;">Next</button>
+</section>
+
 
   <section id="cardsSection" style="display:none;">
     <h2>My Cards</h2>

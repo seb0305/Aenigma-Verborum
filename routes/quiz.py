@@ -1,7 +1,12 @@
+import os
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from extensions import db
 from models import VocabEntry, QuizRound, QuizAnswer, Card, UserCard
+from openai import OpenAI
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
 quiz_bp = Blueprint("quiz", __name__)
 
@@ -24,30 +29,49 @@ def next_questions():
     # limit to 10 vocabs
 
     weak = VocabEntry.query.filter(
-        VocabEntry.user_id == user_id,
-        (VocabEntry.accuracy_percent < 70) | (VocabEntry.total_answers < 3)
+        VocabEntry.user_id == user_id
     ).limit(10).all()
 
-    return jsonify([
-        {
+    questions = []
+    for e in weak:
+        correct = e.german_translation
+
+        wrong_options = [
+            "Falsche Übersetzung 1",
+            "Falsche Übersetzung 2",
+            "Falsche Übersetzung 3",
+        ]
+
+        import random
+        options = wrong_options + [correct]
+        random.shuffle(options)
+        correct_index = options.index(correct)
+
+        questions.append({
             "id": e.id,
             "latin_word": e.latin_word,
-            "german_translation": e.german_translation,  # frontend can hide this until checking
-        }
-        for e in weak
-    ])
+            "options": options,
+            "correct_index": correct_index,
+        })
+
+    return jsonify(questions)
 
 @quiz_bp.post("/answer")
 def answer_question():
     user_id = get_current_user_id()
     data = request.get_json()
+
     quiz_round_id = data.get("quiz_round_id")
     vocab_entry_id = data.get("vocab_entry_id")
-    user_answer = (data.get("user_answer") or "").strip().lower()
+    selected_option = (data.get("selected_option") or "").strip().lower()
+
     # Reads the relevant VocabEntry row
     entry = VocabEntry.query.filter_by(id=vocab_entry_id, user_id=user_id).first_or_404()
 
-    is_correct = user_answer == entry.german_translation.strip().lower()
+    # correct translation from DB
+    correct_translation = entry.german_translation.strip().lower()
+
+    is_correct = (selected_option == correct_translation)
 
     # Creates a QuizAnswer row linking the quiz round and vocab entry
     qa = QuizAnswer(
@@ -64,14 +88,33 @@ def answer_question():
 
     entry.accuracy_percent = (entry.correct_answers * 100.0) / entry.total_answers
 
-    card_unlocked = False
+    # 4) handle bronze card creation / removal
+    card_change = None  # "created", "removed" or None
     card_id = None
 
-    # if criteria met, create bronze Card row and UserCard row
-    if is_correct and not entry.has_bronze_card and entry.total_answers >= 3 and entry.accuracy_percent >= 80:
-        # TODO: integrate real AI image + text here
-        description = f"AI flavor text for {entry.latin_word}"
-        image_url = "https://example.com/generated-image.png"
+    # find existing bronze card for this user + vocab (if any)
+    bronze = (
+        db.session.query(Card, UserCard)
+        .join(UserCard, UserCard.card_id == Card.id)
+        .filter(
+            Card.vocab_entry_id == entry.id,
+            Card.rarity == "bronze",
+            UserCard.user_id == user_id,
+        )
+        .first()
+    )
+
+    # CREATE card if accuracy >= 90%, answer correct, enough attempts, and no card
+    if (
+        is_correct
+        and entry.accuracy_percent >= 90.0
+        and entry.total_answers >= 1
+        and bronze is None
+    ):
+        # placeholder AI content for Milestone 1
+        description = f"Bronze card for {entry.latin_word}"
+        image_url = "https://placehold.co/240x320?text=Bronze+Card"
+
 
         card = Card(
             vocab_entry_id=entry.id,
@@ -81,7 +124,7 @@ def answer_question():
             image_url=image_url,
         )
         db.session.add(card)
-        db.session.flush()
+        db.session.flush()  # get card.id
 
         user_card = UserCard(
             user_id=user_id,
@@ -90,7 +133,24 @@ def answer_question():
         db.session.add(user_card)
 
         entry.has_bronze_card = True
-        card_unlocked = True
+        card_change = "created"
+        card_id = card.id
+
+    # REMOVE card if accuracy < 90% and card exists
+    elif entry.accuracy_percent < 90.0 and bronze is not None:
+        card, user_card = bronze
+        db.session.delete(user_card)
+
+        # optionally delete Card if no other user owns it
+        others = UserCard.query.filter(
+            UserCard.card_id == card.id,
+            UserCard.user_id != user_id,
+        ).count()
+        if others == 0:
+            db.session.delete(card)
+
+        entry.has_bronze_card = False
+        card_change = "removed"
         card_id = card.id
 
     db.session.commit()
@@ -98,7 +158,7 @@ def answer_question():
     return jsonify({
         "correct": is_correct,
         "accuracy_percent": entry.accuracy_percent,
-        "card_unlocked": card_unlocked,
+        "card_change": card_change,
         "card_id": card_id,
     })
 
