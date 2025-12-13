@@ -1,9 +1,13 @@
 import os
+import json
+import logging
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from extensions import db
 from models import VocabEntry, QuizRound, QuizAnswer, Card, UserCard
 from openai import OpenAI
+
+logger = logging.getLogger(__name__)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
@@ -29,18 +33,57 @@ def next_questions():
     # limit to 10 vocabs
 
     weak = VocabEntry.query.filter(
-        VocabEntry.user_id == user_id
+        VocabEntry.user_id == user_id,
+        (VocabEntry.accuracy_percent < 95) | (VocabEntry.total_answers < 30)
     ).limit(10).all()
 
     questions = []
     for e in weak:
         correct = e.german_translation
 
+        # Call OpenAI to get 3 plausible but wrong German options
+        prompt = (
+            "Du bekommst ein lateinisch-deutsches Vokabelpaar. "
+            "Gib mir genau drei falsche, aber plausibel klingende deutsche Übersetzungen "
+            "für das lateinische Wort, als JSON-Liste von Strings."
+            "Die falschen Übersetzungen sollen deutlich von der korrekten Übersetzung abweichen.\n\n"
+            f"Latein: {e.latin_word}\n"
+            f"Richtige deutsche Übersetzung: {correct}"
+        )
+
+        try:
+            resp = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Du bist ein hilfreicher Assistent für Latein-Deutsch-Vokabeltraining. Antworte nur mit einer JSON-Liste von Strings."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    },
+                ],
+                max_tokens=120,
+            )
+            content = resp.choices[0].message.content.strip()
+            logger.info("OpenAI content: %s", content)
+            wrong_options = json.loads(content)
+        except Exception as e:
+            logger.error("OpenAI error: %s", e)
+            wrong_options = [
+                "Falsche Übersetzung 1",
+                "Falsche Übersetzung 2",
+                "Falsche Übersetzung 3",
+            ]
+
+        # Safety: ensure exactly 3 strings and no duplicate of correct
         wrong_options = [
-            "Falsche Übersetzung 1",
-            "Falsche Übersetzung 2",
-            "Falsche Übersetzung 3",
-        ]
+                            w for w in wrong_options
+                            if isinstance(w, str) and w.strip() and w.strip().lower() != correct.strip().lower()
+                        ][:3]
+        while len(wrong_options) < 3:
+            wrong_options.append(f"Andere falsche Übersetzung {len(wrong_options) + 1}")
 
         import random
         options = wrong_options + [correct]
