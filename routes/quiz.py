@@ -1,16 +1,27 @@
 import os
 import json
+import re
 import logging
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime
 from extensions import db
 from models import VocabEntry, QuizRound, QuizAnswer, Card, UserCard
 from openai import OpenAI
+from pydantic import BaseModel
+from frag_caesar import get_word_information
 
 logger = logging.getLogger(__name__)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+
+class WrongOptions(BaseModel):
+    options: list[str]
+
+def normalize_german(s: str) -> str:
+    """Lowercase, trim, collapse whitespace for robust equality checks."""
+    return re.sub(r"\s+", " ", s.strip().lower())
+
 
 quiz_bp = Blueprint("quiz", __name__)
 
@@ -37,18 +48,41 @@ def next_questions():
         (VocabEntry.accuracy_percent < 95) | (VocabEntry.total_answers < 30)
     ).limit(10).all()
 
+
+
     questions = []
     for e in weak:
         correct = e.german_translation
 
-        # Call OpenAI to get 3 plausible but wrong German options
+        # Webscraping context
+        context = ""
+
+        # 1) Get FragCaesar info for this Latin word
+        frag_result = get_word_information(e.latin_word)  # uses frag_caesar_py.py [web:1]
+        if frag_result:
+            german_raw = frag_result.get("german", "") or ""
+            # split all true meanings: "sie werden genannt|sie werden angeredet|..."
+            true_meanings = [
+                normalize_german(p) for p in german_raw.split("|") if p.strip()
+            ]
+        else:
+            true_meanings = []
+
+        # also include your stored correct translation as true
+        true_meanings.append(normalize_german(correct))
+        true_meanings_set = set(true_meanings)
+
+        # 2) Ask OpenAI for three wrong but plausible options
+        all_true_german_for_prompt = frag_result.get("german", correct) if frag_result else correct
+
         prompt = (
-            "Du bekommst ein lateinisch-deutsches Vokabelpaar. "
-            "Gib mir genau drei falsche, aber plausibel klingende deutsche Übersetzungen "
-            "für das lateinische Wort, als JSON-Liste von Strings."
-            "Die falschen Übersetzungen sollen deutlich von der korrekten Übersetzung abweichen.\n\n"
-            f"Latein: {e.latin_word}\n"
-            f"Richtige deutsche Übersetzung: {correct}"
+            "You get a Latin–German vocabulary pair.\n"
+            "Return EXACTLY three wrong but plausible German translations for the Latin word.\n"
+            "Important:\n"
+            "- Do NOT repeat any of the given true translations.\n"
+            "- Answer ONLY with a JSON array of strings, no extra text.\n\n"
+            f"Latin: {e.latin_word}\n"
+            f"True German translation(s): {all_true_german_for_prompt}"
         )
 
         try:
@@ -57,33 +91,43 @@ def next_questions():
                 messages=[
                     {
                         "role": "system",
-                        "content": "Du bist ein hilfreicher Assistent für Latein-Deutsch-Vokabeltraining. Antworte nur mit einer JSON-Liste von Strings."
+                        "content": (
+                            "You are a helpful assistant for Latin–German vocabulary training. "
+                            "Always answer ONLY with a JSON array of strings, e.g. "
+                            "[\"Wort1\",\"Wort2\",\"Wort3\"]. No explanations."
+                        ),
                     },
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    },
+                    {"role": "user", "content": prompt},
                 ],
                 max_tokens=120,
             )
             content = resp.choices[0].message.content.strip()
-            logger.info("OpenAI content: %s", content)
-            wrong_options = json.loads(content)
-        except Exception as e:
-            logger.error("OpenAI error: %s", e)
-            wrong_options = [
+            current_app.logger.info("OpenAI content for %s: %s", e.latin_word, content)
+            wrong_options_raw = json.loads(content)
+        except Exception as ex:
+            current_app.logger.error("OpenAI error for %s: %s", e.latin_word, ex)
+            wrong_options_raw = [
                 "Falsche Übersetzung 1",
                 "Falsche Übersetzung 2",
                 "Falsche Übersetzung 3",
             ]
 
-        # Safety: ensure exactly 3 strings and no duplicate of correct
-        wrong_options = [
-                            w for w in wrong_options
-                            if isinstance(w, str) and w.strip() and w.strip().lower() != correct.strip().lower()
-                        ][:3]
+        # 3) Filter out any distractor that matches a real meaning
+        filtered = []
+        for w in wrong_options_raw:
+            if not isinstance(w, str):
+                continue
+            norm = normalize_german(w)
+            if not norm:
+                continue
+            if norm in true_meanings_set:
+                continue
+            filtered.append(w.strip())
+
+        # 4) Ensure exactly 3 distractors
+        wrong_options = filtered[:3]
         while len(wrong_options) < 3:
-            wrong_options.append(f"Andere falsche Übersetzung {len(wrong_options) + 1}")
+            wrong_options.append(f"Other wrong translation {len(wrong_options) + 1}")
 
         import random
         options = wrong_options + [correct]
