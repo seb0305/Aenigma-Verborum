@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import random
 import logging
 from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime
@@ -8,7 +9,6 @@ from extensions import db
 from models import VocabEntry, QuizRound, QuizAnswer, Card, UserCard
 from openai import OpenAI
 from pydantic import BaseModel
-from frag_caesar import get_word_information
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +18,14 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 class WrongOptions(BaseModel):
     options: list[str]
 
-def normalize_german(s: str) -> str:
-    """Lowercase, trim, collapse whitespace for robust equality checks."""
-    return re.sub(r"\s+", " ", s.strip().lower())
+def normalize_german_strict(s: str) -> str:
+    s = s.strip().lower()
+    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"[;.,!?:]+$", "", s)
+    return s
 
+def build_true_meanings_set_from_db(correct: str) -> set[str]:
+    return {normalize_german_strict(correct)}
 
 quiz_bp = Blueprint("quiz", __name__)
 
@@ -45,36 +49,15 @@ def next_questions():
 
     weak = VocabEntry.query.filter(
         VocabEntry.user_id == user_id,
-        (VocabEntry.accuracy_percent < 95) | (VocabEntry.total_answers < 30)
+        (VocabEntry.accuracy_percent < 95) | (VocabEntry.total_answers < 100)
     ).limit(10).all()
 
-
+    print(weak)
 
     questions = []
     for e in weak:
         correct = e.german_translation
-
-        # Webscraping context
-        context = ""
-
-        # 1) Get FragCaesar info for this Latin word
-        frag_result = get_word_information(e.latin_word)  # uses frag_caesar_py.py [web:1]
-        if frag_result:
-            german_raw = frag_result.get("german", "") or ""
-            # split all true meanings: "sie werden genannt|sie werden angeredet|..."
-            true_meanings = [
-                normalize_german(p) for p in german_raw.split("|") if p.strip()
-            ]
-        else:
-            true_meanings = []
-
-        # also include your stored correct translation as true
-        true_meanings.append(normalize_german(correct))
-        true_meanings_set = set(true_meanings)
-
-        # 2) Ask OpenAI for three wrong but plausible options
-        all_true_german_for_prompt = frag_result.get("german", correct) if frag_result else correct
-
+        true_meanings_set = build_true_meanings_set_from_db(correct)
         prompt = (
             "You get a Latin–German vocabulary pair.\n"
             "Return EXACTLY three wrong but plausible German translations for the Latin word.\n"
@@ -82,7 +65,7 @@ def next_questions():
             "- Do NOT repeat any of the given true translations.\n"
             "- Answer ONLY with a JSON array of strings, no extra text.\n\n"
             f"Latin: {e.latin_word}\n"
-            f"True German translation(s): {all_true_german_for_prompt}"
+            f"True German translation: {correct}"
         )
 
         try:
@@ -111,25 +94,26 @@ def next_questions():
                 "Falsche Übersetzung 2",
                 "Falsche Übersetzung 3",
             ]
-
+        print(true_meanings_set)
         # 3) Filter out any distractor that matches a real meaning
         filtered = []
         for w in wrong_options_raw:
             if not isinstance(w, str):
                 continue
-            norm = normalize_german(w)
+            norm = normalize_german_strict(w)
             if not norm:
                 continue
             if norm in true_meanings_set:
+                # This distractor equals a true meaning => reject
                 continue
             filtered.append(w.strip())
 
-        # 4) Ensure exactly 3 distractors
+        # 4) Ensure exactly 3 distractors (pad if needed)
         wrong_options = filtered[:3]
         while len(wrong_options) < 3:
             wrong_options.append(f"Other wrong translation {len(wrong_options) + 1}")
 
-        import random
+        # 5) Build final options list and shuffle
         options = wrong_options + [correct]
         random.shuffle(options)
         correct_index = options.index(correct)
