@@ -48,14 +48,49 @@ def get_kurzuebersicht(word: str) -> List[Dict[str, str]]:
     return result
 
 
+def get_german_meanings(word: str) -> list[str]:
+    """
+    Return a list of German meaning strings for the lemma.
+    For now: only the first Kurzübersicht row.
+    """
+    rows = get_kurzuebersicht(word)
+    if not rows:
+        return []
+
+    first = rows[0]          # lemma row: Infinitiv
+    german = first.get("german", "").strip()
+    if not german:
+        return []
+
+    # optional: split by spaces vs keep as one string
+    # here: keep whole string as one item
+    return [german]
 
 """
 if __name__ == "__main__":
-    rows = get_kurzuebersicht("currebas")
+    meanings = get_german_meanings("currebas")
+    print(meanings)
+    # ['laufen eilen rennen']
+
+    meanings = get_german_meanings("petere")
+    print(meanings)
+    # ['laufen eilen rennen']
+
+    rows = get_kurzuebersicht("audis")
     for r in rows:
         print(r)
 
-    rows = get_kurzuebersicht("audis")
+    rows = get_kurzuebersicht("consilia")
+    for r in rows:
+        print(r)
+
+    # doesnt work properly for nouns yet
+
+    rows = get_kurzuebersicht("consilium")
+    for r in rows:
+        print(r)
+
+    rows = get_kurzuebersicht("regibus")
     for r in rows:
         print(r)
 

@@ -5,6 +5,8 @@ import random
 import logging
 from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime
+
+import frag_caesar_crawl4ai
 from extensions import db
 from models import VocabEntry, QuizRound, QuizAnswer, Card, UserCard
 from openai import OpenAI
@@ -56,8 +58,12 @@ def next_questions():
 
     questions = []
     for e in weak:
+        latin_word = e.latin_word
         correct = e.german_translation
-        true_meanings_set = build_true_meanings_set_from_db(correct)
+        print(correct)
+        true_meanings_set = set(frag_caesar_crawl4ai.get_german_meanings(latin_word))
+
+        print(true_meanings_set)
         prompt = (
             "You get a Latin–German vocabulary pair.\n"
             "Return EXACTLY three wrong but plausible German translations for the Latin word.\n"
@@ -94,7 +100,7 @@ def next_questions():
                 "Falsche Übersetzung 2",
                 "Falsche Übersetzung 3",
             ]
-        print(true_meanings_set)
+
         # 3) Filter out any distractor that matches a real meaning
         filtered = []
         for w in wrong_options_raw:
