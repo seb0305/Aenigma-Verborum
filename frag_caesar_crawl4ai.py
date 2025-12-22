@@ -12,7 +12,10 @@ ATTR_TRANSLATIONS = {
 }
 
 def get_kurzuebersicht(word: str) -> List[Dict[str, str]]:
+    #variants = ["","-1","-2","-3"]
+    #url_template
     url = f"https://www.frag-caesar.de/lateinwoerterbuch/{word}-uebersetzung.html"
+
     resp = requests.get(url, timeout=10)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -21,6 +24,7 @@ def get_kurzuebersicht(word: str) -> List[Dict[str, str]]:
     headline = soup.find("h2", string=lambda s: s and "Kurz" in s)
     table = headline.find_next("table") if headline else None
     if not table:
+        print("No table")
         return []
 
     rows = table.find_all("tr")
@@ -66,20 +70,20 @@ def get_german_meanings(word: str) -> list[str]:
     # keep whole string as one item
     return [german]
 
-"""
+
 if __name__ == "__main__":
     meanings = get_german_meanings("currebas")
     print(meanings)
     # ['laufen eilen rennen']
 
-    meanings = get_german_meanings("petere")
+    meanings = get_german_meanings("princeps")
     print(meanings)
     # ['laufen eilen rennen']
 
-    rows = get_kurzuebersicht("audis")
-    for r in rows:
-        print(r)
-
+    meanings = get_german_meanings("audiveram")
+    print(meanings)
+    # ['laufen eilen rennen']
+    """
     rows = get_kurzuebersicht("consilia")
     for r in rows:
         print(r)
