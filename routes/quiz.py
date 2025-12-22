@@ -66,12 +66,13 @@ def next_questions():
         print(true_meanings_set)
         prompt = (
             "You get a Latin–German vocabulary pair.\n"
-            "Return EXACTLY three wrong but plausible German translations for the Latin word.\n"
+            "Return EXACTLY three unique, wrong but plausible German translations for the Latin word.\n"
             "Important:\n"
-            "- Do NOT repeat any of the given true translations.\n"
+            "- Do NOT repeat any of the given true german meanings.\n"
             "- Answer ONLY with a JSON array of strings, no extra text.\n\n"
             f"Latin: {e.latin_word}\n"
-            f"True German translation: {correct}"
+            f"True German translation: {correct}\n"
+            f"True German meanings: {true_meanings_set}"
         )
 
         try:

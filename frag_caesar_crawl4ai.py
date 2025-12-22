@@ -63,7 +63,7 @@ def get_german_meanings(word: str) -> list[str]:
         return []
 
     # optional: split by spaces vs keep as one string
-    # here: keep whole string as one item
+    # keep whole string as one item
     return [german]
 
 """
