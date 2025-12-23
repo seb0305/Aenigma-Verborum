@@ -68,11 +68,11 @@ def next_questions():
             "You get a Latin–German vocabulary pair.\n"
             "Return EXACTLY three unique, wrong but plausible German translations for the Latin word.\n"
             "Important:\n"
-            "- Do NOT repeat any of the given true german meanings.\n"
+            "- Do NOT repeat any of the other given true german meanings.\n"
             "- Answer ONLY with a JSON array of strings, no extra text.\n\n"
             f"Latin: {e.latin_word}\n"
             f"True German translation: {correct}\n"
-            f"True German meanings: {true_meanings_set}"
+            f"Other true German meanings: {true_meanings_set}"
         )
 
         try:
