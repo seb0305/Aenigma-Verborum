@@ -69,33 +69,3 @@ def get_german_meanings(word: str) -> list[str]:
     # optional: split by spaces vs keep as one string
     # keep whole string as one item
     return [german]
-
-
-if __name__ == "__main__":
-    meanings = get_german_meanings("currebas")
-    print(meanings)
-    # ['laufen eilen rennen']
-
-    meanings = get_german_meanings("princeps")
-    print(meanings)
-    # ['laufen eilen rennen']
-
-    meanings = get_german_meanings("audiveram")
-    print(meanings)
-    # ['laufen eilen rennen']
-    """
-    rows = get_kurzuebersicht("consilia")
-    for r in rows:
-        print(r)
-
-    # doesnt work properly for nouns yet
-
-    rows = get_kurzuebersicht("consilium")
-    for r in rows:
-        print(r)
-
-    rows = get_kurzuebersicht("regibus")
-    for r in rows:
-        print(r)
-
-"""
