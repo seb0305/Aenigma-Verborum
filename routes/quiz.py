@@ -26,8 +26,27 @@ def normalize_german_strict(s: str) -> str:
     s = re.sub(r"[;.,!?:]+$", "", s)
     return s
 
-def build_true_meanings_set_from_db(correct: str) -> set[str]:
-    return {normalize_german_strict(correct)}
+def build_true_meanings_set_from_frag_caesar_and_db(correct: str, latin_word: str) -> set[str]:
+    """
+    Combine the main DB translation with all meanings scraped from FragCaesar.
+    All normalized with normalize_german_strict.
+    """
+    s: set[str] = set()
+    if correct:
+        s.add(normalize_german_strict(correct))
+
+    try:
+        extra_meanings = frag_caesar_crawl4ai.get_german_meanings(latin_word) or []
+    except Exception as ex:
+        current_app.logger.error("FragCaesar error for %s: %s", latin_word, ex)
+        extra_meanings = []
+
+    for m in extra_meanings:
+        norm = normalize_german_strict(m)
+        if norm:
+            s.add(norm)
+
+    return s
 
 quiz_bp = Blueprint("quiz", __name__)
 
@@ -60,74 +79,137 @@ def next_questions():
     for e in weak:
         latin_word = e.latin_word
         correct = e.german_translation
-        print(correct)
-        true_meanings_set = set(frag_caesar_crawl4ai.get_german_meanings(latin_word))
 
-        print(true_meanings_set)
-        prompt = (
+        # Build full set of true meanings (DB + FragCaesar)
+        true_meanings_set = build_true_meanings_set_from_frag_caesar_and_db(
+            correct=correct,
+            latin_word=latin_word,
+        )
+
+        # ---- OpenAI call with fallback + short chat history ----
+
+        system_msg = {
+            "role": "system",
+            "content": (
+                "You are a helpful assistant for Latin–German vocabulary training. "
+                "Always answer ONLY with a JSON array of strings, e.g. "
+                "[\"Wort1\",\"Wort2\",\"Wort3\"]. No explanations."
+            ),
+        }
+
+        base_user_prompt = (
             "You get a Latin–German vocabulary pair.\n"
             "Return EXACTLY three unique, wrong but plausible German translations for the Latin word.\n"
             "Important:\n"
-            "- Do NOT repeat any of the other given true german meanings.\n"
+            "- Do NOT repeat any of the other given true German meanings.\n"
             "- Answer ONLY with a JSON array of strings, no extra text.\n\n"
-            f"Latin: {e.latin_word}\n"
+            f"Latin: {latin_word}\n"
             f"True German translation: {correct}\n"
-            f"Other true German meanings: {true_meanings_set}"
+            f"Other true German meanings: {sorted(true_meanings_set)}"
         )
 
-        try:
-            resp = client.chat.completions.create(
-                model=OPENAI_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a helpful assistant for Latin–German vocabulary training. "
-                            "Always answer ONLY with a JSON array of strings, e.g. "
-                            "[\"Wort1\",\"Wort2\",\"Wort3\"]. No explanations."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=120,
-            )
-            content = resp.choices[0].message.content.strip()
-            current_app.logger.info("OpenAI content for %s: %s", e.latin_word, content)
-            wrong_options_raw = json.loads(content)
-        except Exception as ex:
-            current_app.logger.error("OpenAI error for %s: %s", e.latin_word, ex)
+        messages = [system_msg, {"role": "user", "content": base_user_prompt}]
+
+        wrong_options_raw: list[str] = []
+        max_wrong_responses = 3  # allow 3 “bad” attempts
+        attempts = 0
+
+        while attempts < max_wrong_responses:
+            attempts += 1
+            try:
+                resp = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=messages,
+                    max_tokens=120,
+                )
+                content = resp.choices[0].message.content.strip()
+                current_app.logger.info("OpenAI content for %s (attempt %d): %s",
+                                        latin_word, attempts, content)
+                wrong_options_raw = json.loads(content)
+                if not isinstance(wrong_options_raw, list):
+                    raise ValueError("OpenAI response is not a JSON list")
+
+            except Exception as ex:
+                current_app.logger.error("OpenAI error for %s (attempt %d): %s",
+                                         latin_word, attempts, ex)
+                wrong_options_raw = [
+                    "Falsche Übersetzung 1",
+                    "Falsche Übersetzung 2",
+                    "Falsche Übersetzung 3",
+                ]
+                break  # fall through to filtering once, no further retries
+
+            # Filter out any distractor that matches a real meaning
+            filtered = []
+            violating = []  # those that matched a true meaning
+
+            for w in wrong_options_raw:
+                if not isinstance(w, str):
+                    continue
+                norm = normalize_german_strict(w)
+                if not norm:
+                    continue
+                if norm in true_meanings_set:
+                    violating.append(w)
+                    continue
+                filtered.append(w.strip())
+
+            # If none of the options violated the true meanings, we accept this response
+            if not violating:
+                wrong_options_raw = filtered
+                break
+
+            # Otherwise, add a brief assistant + user message to the chat history and retry
+            violation_text = ", ".join(f"\"{v}\"" for v in violating)
+            messages.append({
+                "role": "assistant",
+                "content": json.dumps(wrong_options_raw, ensure_ascii=False),
+            })
+            messages.append({
+                "role": "user",
+                "content": (
+                    "Some of your previous suggestions were invalid because they match true German meanings "
+                    f"for this Latin word: {violation_text}.\n"
+                    "Please try again and return three different WRONG translations that do not match any true meaning."
+                ),
+            })
+
+            # If filtered already has 3 or more safe distractors after removing violating ones, we can stop
+            if len(filtered) >= 3:
+                wrong_options_raw = filtered
+                break
+
+            # Otherwise, loop again, letting the new user message guide the model
+
+        # After loop, ensure we have a list of strings in wrong_options_raw (possibly filtered)
+        if not wrong_options_raw:
             wrong_options_raw = [
                 "Falsche Übersetzung 1",
                 "Falsche Übersetzung 2",
                 "Falsche Übersetzung 3",
             ]
 
-        # 3) Filter out any distractor that matches a real meaning
-        filtered = []
+        # Final filtering & padding to exactly 3
+        final_filtered = []
         for w in wrong_options_raw:
             if not isinstance(w, str):
                 continue
             norm = normalize_german_strict(w)
-            if not norm:
+            if not norm or norm in true_meanings_set:
                 continue
-            if norm in true_meanings_set:
-                # This distractor equals a true meaning => reject
-                continue
-            filtered.append(w.strip())
+            final_filtered.append(w.strip())
 
-        # 4) Ensure exactly 3 distractors (pad if needed)
-        wrong_options = filtered[:3]
+        wrong_options = final_filtered[:3]
         while len(wrong_options) < 3:
             wrong_options.append(f"Other wrong translation {len(wrong_options) + 1}")
 
-        # 5) Build final options list and shuffle
         options = wrong_options + [correct]
         random.shuffle(options)
         correct_index = options.index(correct)
 
         questions.append({
             "id": e.id,
-            "latin_word": e.latin_word,
+            "latin_word": latin_word,
             "options": options,
             "correct_index": correct_index,
         })
