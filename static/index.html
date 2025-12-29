@@ -42,10 +42,20 @@
   <button id="btnNextQuestion" style="display:none;">Next</button>
 </section>
 
-  <section id="sortingSection" style="display:none;" class="panel">
-  <h2>Sorting Quiz (Placeholder)</h2>
-  <div>Drag Latin verbs into categories (coming soon!)</div>
-  <div id="sortingPlaceholder">currere → [Bewegung | Sprechen | Denken]</div>
+<section id="sortingSection" style="display:none;" class="panel">
+  <h2>Verb Sorting Quiz</h2>
+  <div id="sortingQuizArea">
+    <div id="verbCard" class="verb-card" draggable="true">
+      Drag me!
+    </div>
+    <div id="categories" class="categories-container">
+      <div class="category-box" data-category="Bewegung">Bewegung</div>
+      <div class="category-box" data-category="Hören">Hören</div>
+      <div class="category-box" data-category="Liebe">Liebe</div>
+    </div>
+    <div id="sortingFeedback"></div>
+    <button id="btnNextSortingVerb" style="display:none;">Nächstes Verb</button>
+  </div>
 </section>
 
   <section id="cardsSection" style="display:none;">
