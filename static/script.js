@@ -25,6 +25,7 @@ document.getElementById("btnHomeVocab").onclick = () => {
   loadVocab();
 };
 document.getElementById("btnHomeQuiz").onclick = () => startQuizFlow();
+document.getElementById("btnHomeSorting").onclick = () => showSection("sorting");
 document.getElementById("btnHomeCards").onclick = () => loadCards();
 
 // Show/hide sections
@@ -33,6 +34,7 @@ function showSection(name) {
   vocabSection.style.display = name === "vocab" ? "block" : "none";
   quizSection.style.display  = name === "quiz"  ? "block" : "none";
   cardsSection.style.display = name === "cards" ? "block" : "none";
+  document.getElementById("sortingSection").style.display = name === "sorting" ? "block" : "none";
 }
 
 // Load vocab table
