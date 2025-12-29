@@ -258,6 +258,68 @@ async function loadCards() {
   showSection("cards");
 }
 
+// Drag & Drop Sorting Quiz Logic (audire = I-Konjugation)
+document.addEventListener('DOMContentLoaded', function() {
+  const verbCard = document.getElementById('verbCard');
+  const feedback = document.getElementById('sortingFeedback');
+  const categories = document.querySelectorAll('.category-box');
+
+  // Correct answer for placeholder
+  const correctCategory = 'I-Konjugation';
+
+  // Drag start
+  verbCard.addEventListener('dragstart', function(e) {
+    e.dataTransfer.setData('text/plain', 'audire');
+    feedback.textContent = 'Drag to a category!';
+    feedback.style.color = '#007bff';
+  });
+
+  // Category dragover (allow drop)
+  categories.forEach(box => {
+    box.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      this.style.background = '#e3f2fd';
+    });
+
+    box.addEventListener('dragleave', function(e) {
+      this.style.background = '#f8f9fa';
+    });
+
+    // Drop handler
+    box.addEventListener('drop', function(e) {
+      e.preventDefault();
+      this.style.background = '#f8f9fa';
+
+      const draggedVerb = e.dataTransfer.getData('text/plain');
+      const selectedCategory = this.dataset.category;
+
+      // Check answer
+      if (selectedCategory === correctCategory) {
+        this.classList.add('correct');
+        this.innerHTML += ' ✓ Richtig!';
+        feedback.innerHTML = 'Perfekt! <strong>audire</strong> gehört zur <strong>I-Konjugation</strong>';
+        feedback.style.color = '#28a745';
+      } else {
+        this.classList.add('wrong');
+        this.innerHTML += ' ✗ Falsch';
+        feedback.innerHTML = `Nope! <strong>audire</strong> gehört zur <strong>I-Konjugation</strong>, nicht ${selectedCategory}`;
+        feedback.style.color = '#dc3545';
+      }
+
+      // Reset verb for retry
+      setTimeout(() => {
+        verbCard.textContent = 'audire';
+        categories.forEach(cat => {
+          cat.classList.remove('correct', 'wrong');
+          cat.innerHTML = cat.dataset.category;
+        });
+        feedback.textContent = 'Versuche es erneut!';
+        feedback.style.color = '#666';
+      }, 3000);
+    });
+  });
+});
+
 
 // initial load
 loadVocab();
