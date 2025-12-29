@@ -208,3 +208,12 @@ input:focus {
   25% { transform: translateX(-5px); }
   75% { transform: translateX(5px); }
 }
+
+.next-btn {
+  margin-top: 20px; padding: 12px 30px; font-size: 16px; font-weight: bold;
+  background: #007bff; color: white; border: none; border-radius: 25px;
+  cursor: pointer; transition: all 0.3s;
+}
+
+.next-btn:hover { background: #0056b3; transform: translateY(-2px); }
+
