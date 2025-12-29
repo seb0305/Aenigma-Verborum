@@ -44,20 +44,22 @@
 
 <section id="sortingSection" style="display:none;" class="panel">
   <h2>Verb Sorting Quiz</h2>
-  <div style="font-size: 2em; text-align: center; padding: 50px; color: #666;">
-    NOW LET'S GET SORTED
-  </div>
-  <div id="sortingQuizArea">
+  <div id="sortingQuizArea" class="sorting-area">
+    <!-- Draggable Verb Card -->
     <div id="verbCard" class="verb-card" draggable="true">
-      Drag me!
+      audire
     </div>
+
+    <!-- Drop Categories -->
     <div id="categories" class="categories-container">
-      <div class="category-box" data-category="Bewegung">Bewegung</div>
-      <div class="category-box" data-category="Hören">Hören</div>
-      <div class="category-box" data-category="Liebe">Liebe</div>
+      <div class="category-box" data-category="A-Konjugation">A-Konjugation</div>
+      <div class="category-box" data-category="E-Konjugation">E-Konjugation</div>
+      <div class="category-box" data-category="I-Konjugation">I-Konjugation</div>
+      <div class="category-box" data-category="konsonantische Konjugation">konsonantische Konjugation</div>
     </div>
-    <div id="sortingFeedback"></div>
-    <button id="btnNextSortingVerb" style="display:none;">Nächstes Verb</button>
+
+    <!-- Feedback -->
+    <div id="sortingFeedback" class="feedback"></div>
   </div>
 </section>
 

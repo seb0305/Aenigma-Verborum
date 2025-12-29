@@ -258,6 +258,7 @@ async function loadCards() {
   showSection("cards");
 }
 
+
 // initial load
 loadVocab();
 showSection("vocab");
