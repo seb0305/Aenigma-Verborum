@@ -70,7 +70,20 @@ def get_german_meanings(word: str) -> list[str]:
     # keep whole string as one item
     return [german]
 
-def get_verb_flexion_type(word: str) -> list[str]:
+def get_word_type(word: str) -> str:
+    """
+    Return a list of German meaning strings for the lemma.
+    For now: only the first Kurzübersicht row.
+    """
+    rows = get_kurzuebersicht(word)
+    if not rows:
+        return []
+
+    first = rows[0]          # lemma row: Infinitiv
+
+    return first['type']
+
+def get_verb_flexion_type(word: str) -> str:
     """
     Return a list of German meaning strings for the lemma.
     For now: only the first Kurzübersicht row.
@@ -83,15 +96,4 @@ def get_verb_flexion_type(word: str) -> list[str]:
     if not first['type'] == "Verb":
         return []
 
-    # optional: split by spaces vs keep as one string
-    # keep whole string as one item
     return first['flexion_type']
-
-if __name__ == "__main__":
-    kurzue = get_kurzuebersicht("audire")
-    print(kurzue)
-    print(kurzue[0])
-    print(kurzue[1])
-    print(kurzue[0]['type'])
-    print(kurzue[0]['flexion_type'])
-    print(get_verb_flexion_type("audire"))

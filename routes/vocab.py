@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
 from models import VocabEntry
+import frag_caesar_crawl4ai
 
 vocab_bp = Blueprint("vocab", __name__)
 
@@ -44,10 +45,18 @@ def add_vocab():
             "suggestions": ["<AI-translation-1>", "<AI-translation-2>"]
         }), 200
 
+    try:
+        word_type = frag_caesar_crawl4ai.get_word_type(latin)
+        flexion_type = frag_caesar_crawl4ai.get_verb_flexion_type(latin) if word_type == "Verb" else None
+    except:
+        word_type, flexion_type = "unknown", None
+
     entry = VocabEntry(
         user_id=user_id,
         latin_word=latin,
         german_translation=german,
+        word_type=word_type,
+        flexion_type=flexion_type,
     )
     db.session.add(entry)
     db.session.commit()
