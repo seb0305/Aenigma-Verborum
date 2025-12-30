@@ -258,25 +258,62 @@ async function loadCards() {
   showSection("cards");
 }
 
-// Drag & Drop Sorting Quiz Logic (audire = I-Konjugation)
+// 3 Test Verbs Data
+const testVerbs = [
+  { verb: 'audire', correct: 'I-Konjugation' },
+  { verb: 'petere', correct: 'konsonantische Konjugation' },
+  { verb: 'vocare', correct: 'A-Konjugation' }
+];
+
+let currentVerbIndex = 0;
+let gameActive = false;
+
+// Sorting Quiz Logic
 document.addEventListener('DOMContentLoaded', function() {
   const verbCard = document.getElementById('verbCard');
   const feedback = document.getElementById('sortingFeedback');
+  const nextBtn = document.getElementById('btnNextVerb');
   const categories = document.querySelectorAll('.category-box');
 
-  // Correct answer for placeholder
-  const correctCategory = 'I-Konjugation';
+  // Start game with first verb
+  function loadNextVerb() {
+    if (currentVerbIndex >= testVerbs.length) {
+      feedback.innerHTML = 'Quiz komplett! Alle 3 Verben gemeistert! 🎉';
+      feedback.style.color = '#28a745';
+      verbCard.style.display = 'none';
+      nextBtn.style.display = 'none';
+      return;
+    }
+
+    const verbData = testVerbs[currentVerbIndex];
+    verbCard.textContent = verbData.verb;
+    verbCard.style.display = 'flex';
+    feedback.textContent = 'Drag to sort!';
+    feedback.style.color = '#007bff';
+    nextBtn.style.display = 'none';
+    gameActive = true;
+
+    resetCategories();
+  }
+
+  function resetCategories() {
+    categories.forEach(box => {
+      box.classList.remove('correct', 'wrong');
+      box.innerHTML = box.dataset.category;
+      box.style.background = '#f8f9fa';
+    });
+  }
 
   // Drag start
   verbCard.addEventListener('dragstart', function(e) {
-    e.dataTransfer.setData('text/plain', 'audire');
-    feedback.textContent = 'Drag to a category!';
-    feedback.style.color = '#007bff';
+    if (!gameActive) return;
+    e.dataTransfer.setData('text/plain', JSON.stringify(testVerbs[currentVerbIndex]));
   });
 
-  // Category dragover (allow drop)
+  // Category events
   categories.forEach(box => {
     box.addEventListener('dragover', function(e) {
+      if (!gameActive) return;
       e.preventDefault();
       this.style.background = '#e3f2fd';
     });
@@ -285,40 +322,53 @@ document.addEventListener('DOMContentLoaded', function() {
       this.style.background = '#f8f9fa';
     });
 
-    // Drop handler
     box.addEventListener('drop', function(e) {
+      if (!gameActive) return;
       e.preventDefault();
       this.style.background = '#f8f9fa';
 
-      const draggedVerb = e.dataTransfer.getData('text/plain');
+      const verbData = JSON.parse(e.dataTransfer.getData('text/plain'));
       const selectedCategory = this.dataset.category;
+      gameActive = false;
 
       // Check answer
-      if (selectedCategory === correctCategory) {
+      if (selectedCategory === verbData.correct) {
         this.classList.add('correct');
         this.innerHTML += ' ✓ Richtig!';
-        feedback.innerHTML = 'Perfekt! <strong>audire</strong> gehört zur <strong>I-Konjugation</strong>';
+        feedback.innerHTML = `Perfekt! <strong>${verbData.verb}</strong> → <strong>${verbData.correct}</strong>`;
         feedback.style.color = '#28a745';
       } else {
         this.classList.add('wrong');
         this.innerHTML += ' ✗ Falsch';
-        feedback.innerHTML = `Nope! <strong>audire</strong> gehört zur <strong>I-Konjugation</strong>, nicht ${selectedCategory}`;
+        feedback.innerHTML = `${verbData.verb} gehört zur <strong>${verbData.correct}</strong>, nicht ${selectedCategory}`;
         feedback.style.color = '#dc3545';
       }
 
-      // Reset verb for retry
-      setTimeout(() => {
-        verbCard.textContent = 'audire';
-        categories.forEach(cat => {
-          cat.classList.remove('correct', 'wrong');
-          cat.innerHTML = cat.dataset.category;
-        });
-        feedback.textContent = 'Versuche es erneut!';
-        feedback.style.color = '#666';
-      }, 3000);
+      nextBtn.style.display = 'inline-block';
     });
   });
+
+  // Next verb button
+  nextBtn.onclick = function() {
+    currentVerbIndex++;
+    loadNextVerb();
+  };
+
+  // Auto-start first verb when sorting section shows
+  const sortingSection = document.getElementById('sortingSection');
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+        if (sortingSection.style.display === 'block') {
+          currentVerbIndex = 0;
+          loadNextVerb();
+        }
+      }
+    });
+  });
+  observer.observe(sortingSection, { attributes: true });
 });
+
 
 
 // initial load
