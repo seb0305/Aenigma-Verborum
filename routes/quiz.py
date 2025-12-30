@@ -216,6 +216,15 @@ def next_questions():
 
     return jsonify(questions)
 
+@quiz_bp.route('/verbs/next')
+def verbs_next():
+    verb = VocabEntry.query.filter_by(word_type="Verb").order_by(func.random()).first()
+    return jsonify({
+        'verb': verb.latinword,
+        'correct_category': verb.flexion_type  # ← ECHTE DB DATA!
+    })
+
+
 @quiz_bp.post("/answer")
 def answer_question():
     user_id = get_current_user_id()

@@ -21,6 +21,8 @@ class VocabEntry(db.Model):
     accuracy_percent = db.Column(db.Float, default=0.0)
     has_bronze_card = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    word_type = db.Column(db.String(20), default="unknown")  # "Noun", "Verb"
+    flexion_type = db.Column(db.String(50), default=None, nullable=True)
 
 class QuizRound(db.Model):
     id = db.Column(db.Integer, primary_key=True)
