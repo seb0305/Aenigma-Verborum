@@ -5,6 +5,7 @@ import random
 import logging
 from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime
+from sqlalchemy import func
 
 import frag_caesar_crawl4ai
 from extensions import db
@@ -216,12 +217,22 @@ def next_questions():
 
     return jsonify(questions)
 
+
 @quiz_bp.route('/verbs/next')
 def verbs_next():
-    verb = VocabEntry.query.filter_by(word_type="Verb").order_by(func.random()).first()
+    user_id = get_current_user_id()
+    verb = (VocabEntry.query
+            .filter(VocabEntry.user_id == user_id,
+                    VocabEntry.word_type == "Verb",
+                    VocabEntry.flexion_type.isnot(None))
+            .order_by(func.random())
+            .first())
+    if not verb:
+        return jsonify({"error": "No verbs with flexion_type. Add some!"}), 404
+
     return jsonify({
-        'verb': verb.latinword,
-        'correct_category': verb.flexion_type  # ← ECHTE DB DATA!
+        'verb': verb.latin_word,  # ← Fix: latin_word nicht latinword
+        'correct_category': verb.flexion_type
     })
 
 
@@ -329,6 +340,42 @@ def answer_question():
         "accuracy_percent": entry.accuracy_percent,
         "card_change": card_change,
         "card_id": card_id,
+    })
+
+@quiz_bp.route('/verbs/start', methods=['POST'])
+def verbs_start():
+    user_id = get_current_user_id()
+    qr = QuizRound(user_id=user_id)
+    db.session.add(qr)
+    db.session.commit()
+    return jsonify({"quizroundid": qr.id})
+
+
+@quiz_bp.route('/verbs/answer', methods=['POST'])
+def verbs_answer():
+    data = request.get_json()
+    user_id = get_current_user_id()
+    verb = data['verb']
+    category = data['category']
+
+    entry = VocabEntry.query.filter_by(user_id=user_id, latin_word=verb).first()
+    if not entry:
+        return jsonify({"error": "Verb not found"}), 404
+
+    is_correct = (category == entry.flexion_type)
+
+    # Update stats (wie normal quiz)
+    entry.total_answers += 1
+    if is_correct:
+        entry.correct_answers += 1
+    entry.accuracy_percent = (entry.correct_answers / entry.total_answers) * 100
+
+    db.session.commit()
+
+    return jsonify({
+        "correct": is_correct,
+        "score": entry.accuracy_percent,
+        "message": "Richtig!" if is_correct else "Falsch!"
     })
 
 # lets the DB store complete round histories
