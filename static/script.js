@@ -25,7 +25,10 @@ document.getElementById("btnHomeVocab").onclick = () => {
   loadVocab();
 };
 document.getElementById("btnHomeQuiz").onclick = () => startQuizFlow();
-document.getElementById("btnHomeSorting").onclick = () => showSection("sorting");
+document.getElementById("btnHomeSorting").onclick = () => {
+  showSection("sorting");
+  startSortingQuiz();
+};
 document.getElementById("btnHomeCards").onclick = () => loadCards();
 
 // Show/hide sections
@@ -258,117 +261,92 @@ async function loadCards() {
   showSection("cards");
 }
 
-// 3 Test Verbs Data
-const testVerbs = [
-  { verb: 'audire', correct: 'I-Konjugation' },
-  { verb: 'petere', correct: 'konsonantische Konjugation' },
-  { verb: 'vocare', correct: 'A-Konjugation' }
-];
+// DB-Driven Sorting Quiz (ersetzt hardcoded)
+let currentVerbData = {};
+let sortingRoundId = null;
 
-let currentVerbIndex = 0;
-let gameActive = false;
+async function startSortingQuiz() {
+  const res = await fetch(`${API_BASE}/quiz/verbs/start`, { method: 'POST' });
+  sortingRoundId = (await res.json()).quizroundid;
+  await loadNextSortingVerb();
+}
 
-// Sorting Quiz Logic
-document.addEventListener('DOMContentLoaded', function() {
-  const verbCard = document.getElementById('verbCard');
-  const feedback = document.getElementById('sortingFeedback');
-  const nextBtn = document.getElementById('btnNextVerb');
-  const categories = document.querySelectorAll('.category-box');
+async function loadNextSortingVerb() {
+  const res = await fetch(`${API_BASE}/quiz/verbs/next`);
+  const data = await res.json();
+  if (data.error) { /* ... */ }
+  currentVerbData = data;  // Store full {verb: 'currere', correctcategory: 'I-Konjugation'}
+  document.getElementById('verbCard').textContent = data.verb;
+  document.getElementById('sortingFeedback').textContent = 'Drag to category!';
+  resetCategories();  // Clear previous feedback
+}
 
-  // Start game with first verb
-  function loadNextVerb() {
-    if (currentVerbIndex >= testVerbs.length) {
-      feedback.innerHTML = 'Quiz komplett! Alle 3 Verben gemeistert! 🎉';
-      feedback.style.color = '#28a745';
-      verbCard.style.display = 'none';
-      nextBtn.style.display = 'none';
-      return;
-    }
+// Drag-Drop (update drop handler)
+document.querySelectorAll('.category-box').forEach(box => {
+  box.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const category = box.dataset.category;
 
-    const verbData = testVerbs[currentVerbIndex];
-    verbCard.textContent = verbData.verb;
-    verbCard.style.display = 'flex';
-    feedback.textContent = 'Drag to sort!';
-    feedback.style.color = '#007bff';
-    nextBtn.style.display = 'none';
-    gameActive = true;
-
-    resetCategories();
-  }
-
-  function resetCategories() {
-    categories.forEach(box => {
-      box.classList.remove('correct', 'wrong');
-      box.innerHTML = box.dataset.category;
-      box.style.background = '#f8f9fa';
+    const res = await fetch(`${API_BASE}/quiz/verbs/answer`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        quizroundid: sortingRoundId,
+        verb: currentVerbData.verb,  // ← FIX: currentVerbData!
+        category
+      })
     });
-  }
 
-  // Drag start
-  verbCard.addEventListener('dragstart', function(e) {
-    if (!gameActive) return;
-    e.dataTransfer.setData('text/plain', JSON.stringify(testVerbs[currentVerbIndex]));
+    const result = await res.json();
+    box.classList.add(result.correct ? 'correct' : 'wrong');
+    box.innerHTML += ` (${result.message})`;
+
+    document.getElementById('sortingFeedback').innerHTML =
+      `<strong>${result.message}</strong> ${result.score.toFixed(1)}%`;
+
+    document.getElementById('btnNextVerb').style.display = 'inline-block';
   });
-
-  // Category events
-  categories.forEach(box => {
-    box.addEventListener('dragover', function(e) {
-      if (!gameActive) return;
-      e.preventDefault();
-      this.style.background = '#e3f2fd';
-    });
-
-    box.addEventListener('dragleave', function(e) {
-      this.style.background = '#f8f9fa';
-    });
-
-    box.addEventListener('drop', function(e) {
-      if (!gameActive) return;
-      e.preventDefault();
-      this.style.background = '#f8f9fa';
-
-      const verbData = JSON.parse(e.dataTransfer.getData('text/plain'));
-      const selectedCategory = this.dataset.category;
-      gameActive = false;
-
-      // Check answer
-      if (selectedCategory === verbData.correct) {
-        this.classList.add('correct');
-        this.innerHTML += ' ✓ Richtig!';
-        feedback.innerHTML = `Perfekt! <strong>${verbData.verb}</strong> → <strong>${verbData.correct}</strong>`;
-        feedback.style.color = '#28a745';
-      } else {
-        this.classList.add('wrong');
-        this.innerHTML += ' ✗ Falsch';
-        feedback.innerHTML = `${verbData.verb} gehört zur <strong>${verbData.correct}</strong>, nicht ${selectedCategory}`;
-        feedback.style.color = '#dc3545';
-      }
-
-      nextBtn.style.display = 'inline-block';
-    });
-  });
-
-  // Next verb button
-  nextBtn.onclick = function() {
-    currentVerbIndex++;
-    loadNextVerb();
-  };
-
-  // Auto-start first verb when sorting section shows
-  const sortingSection = document.getElementById('sortingSection');
-  const observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-      if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-        if (sortingSection.style.display === 'block') {
-          currentVerbIndex = 0;
-          loadNextVerb();
-        }
-      }
-    });
-  });
-  observer.observe(sortingSection, { attributes: true });
 });
 
+document.getElementById('btnNextVerb').onclick = loadNextSortingVerb;
+
+function resetCategories() {
+  document.querySelectorAll('.category-box').forEach(box => {
+    box.classList.remove('correct', 'wrong');
+    box.innerHTML = box.dataset.category;
+  });
+}
+
+document.getElementById('verbCard').addEventListener('dragstart', e => {
+  e.dataTransfer.setData('text/plain', '');  // Required for Firefox
+});
+
+document.querySelectorAll('.category-box').forEach(box => {
+  box.addEventListener('dragover', e => e.preventDefault());
+  box.addEventListener('drop', async e => {  // Existing async handler
+    e.preventDefault();
+    const category = box.dataset.category;
+    try {
+      const res = await fetch(`${APIBASE}/quiz/verbsanswer`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          quizroundid: sortingRoundId,
+          verb: currentVerbData.verb,
+          category: category
+        })
+      });
+      const result = await res.json();
+      box.classList.add(result.correct ? 'correct' : 'wrong');
+      box.innerHTML = result.message;
+      document.getElementById('sortingFeedback').innerHTML = `<strong>${result.message}</strong> ${result.score.toFixed(1)}%`;
+      document.getElementById('btnNextVerb').style.display = 'inline-block';
+    } catch (err) {
+      console.error('Drop error:', err);
+      document.getElementById('sortingFeedback').textContent = 'Error submitting answer';
+    }
+  });
+});
 
 
 // initial load
