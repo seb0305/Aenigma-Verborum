@@ -272,14 +272,22 @@ async function startSortingQuiz() {
 }
 
 async function loadNextSortingVerb() {
-  const res = await fetch(`${API_BASE}/quiz/verbs/next`);
+  const res = await fetch(`${API_BASE}/quiz/verbs/next?quizroundid=${sortingRoundId}`);
   const data = await res.json();
-  if (data.error) { /* ... */ }
-  currentVerbData = data;  // Store full {verb: 'currere', correctcategory: 'I-Konjugation'}
+  if (data.error) {
+    document.getElementById('sortingFeedback').textContent = data.error;
+    alert('Sorting quiz complete! All verbs covered.');
+    loadVocab();
+    showSection('vocab');
+    return;
+  }
+  currentVerbData = data;
   document.getElementById('verbCard').textContent = data.verb;
   document.getElementById('sortingFeedback').textContent = 'Drag to category!';
-  resetCategories();  // Clear previous feedback
+  resetCategories();
+  // Re-attach drop listeners if needed
 }
+
 
 // Drag-Drop (update drop handler)
 document.querySelectorAll('.category-box').forEach(box => {

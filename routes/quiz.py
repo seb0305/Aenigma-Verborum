@@ -221,17 +221,37 @@ def next_questions():
 @quiz_bp.route('/verbs/next')
 def verbs_next():
     user_id = get_current_user_id()
+
+    # Get current unfinished sorting round for user
+    current_round = (QuizRound.query
+                     .filter(QuizRound.user_id == user_id,
+                             QuizRound.finished_at.is_(None))
+                     .order_by(QuizRound.id.desc())
+                     .first())
+
+    if not current_round:
+        return jsonify({"error": "No active sorting quiz round"}), 404
+
+    # Asked verb IDs this round
+    asked_ids = (db.session.query(QuizAnswer.vocab_entry_id)
+                 .filter(QuizAnswer.quiz_round_id == current_round.id)
+                 .subquery())
+
     verb = (VocabEntry.query
             .filter(VocabEntry.user_id == user_id,
                     VocabEntry.word_type == "Verb",
-                    VocabEntry.flexion_type.isnot(None))
+                    VocabEntry.flexion_type.isnot(None),
+                    ~VocabEntry.id.in_(asked_ids))  # Exclude asked
             .order_by(func.random())
             .first())
+
     if not verb:
-        return jsonify({"error": "No verbs with flexion_type. Add some!"}), 404
+        current_round.finished_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({"error": "Quiz complete! All verbs asked once."}), 404
 
     return jsonify({
-        'verb': verb.latin_word,  # ← Fix: latin_word nicht latinword
+        'verb': verb.latin_word,
         'correct_category': verb.flexion_type
     })
 
@@ -353,24 +373,54 @@ def verbs_start():
 
 @quiz_bp.route('/verbs/answer', methods=['POST'])
 def verbs_answer():
-    data = request.get_json()
     user_id = get_current_user_id()
+    data = request.get_json()
     verb = data['verb']
     category = data['category']
 
-    entry = VocabEntry.query.filter_by(user_id=user_id, latin_word=verb).first()
+    # Find vocab entry by latin word
+    entry = VocabEntry.query.filter_by(
+        user_id=user_id,
+        latin_word=verb
+    ).first()
+
     if not entry:
         return jsonify({"error": "Verb not found"}), 404
 
+    # Find active round
+    current_round = QuizRound.query.filter(
+        QuizRound.user_id == user_id,
+        QuizRound.finished_at.is_(None)
+    ).order_by(QuizRound.id.desc()).first()
+
+    if not current_round:
+        return jsonify({"error": "No active quiz round"}), 404
+
+    # Check answer
     is_correct = (category == entry.flexion_type)
 
-    # Update stats (wie normal quiz)
+    # Create QuizAnswer record (CRITICAL for tracking)
+    qa = QuizAnswer(
+        quiz_round_id=current_round.id,
+        vocab_entry_id=entry.id,
+        was_correct=is_correct
+    )
+    db.session.add(qa)
+
+    # Update vocab stats
     entry.total_answers += 1
     if is_correct:
         entry.correct_answers += 1
     entry.accuracy_percent = (entry.correct_answers / entry.total_answers) * 100
 
     db.session.commit()
+
+    message = "Richtig!" if is_correct else "Falsch!"
+    return jsonify({
+        "correct": is_correct,
+        "score": entry.accuracy_percent,
+        "message": message
+    })
 
     return jsonify({
         "correct": is_correct,
