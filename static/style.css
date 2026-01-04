@@ -217,3 +217,52 @@ input:focus {
 
 .next-btn:hover { background: #0056b3; transform: translateY(-2px); }
 
+/* Multiple Choice: Exact Sorting Quiz Style Match (Dark Theme Optimized) */
+.quiz-option-btn {
+  width: 200px; height: 80px; padding: 10px; margin: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* .verb-card gradient */
+  border: 3px dashed #a5b4fc; /* Theme dashed like #665 but lighter */
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: bold; font-size: 16px; color: #e5e7eb; /* Theme text */
+  cursor: grab; user-select: none;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5); /* Enhanced for dark bg */
+  transition: all 0.3s ease; /* Matches sorting */
+}
+
+.quiz-option-btn:hover {
+  background: #1f2937; /* Theme hover like .category-box but dark */
+  border-style: solid; border-color: #4f46e5;
+  transform: translateY(-2px);
+}
+
+.quiz-option-btn.correct {
+  border-color: #10b981; background: #020617; /* Green success, theme bg */
+  color: #34d399; animation: pulse-green 0.6s ease-out;
+}
+
+.quiz-option-btn.wrong {
+  border-color: #ef4444; background: #020617; /* Red error, theme bg */
+  color: #f87171; animation: shake 0.5s ease-out;
+}
+
+#btnNextQuestion {
+  margin-top: 20px; padding: 12px 30px; font-size: 16px; font-weight: bold;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); /* Indigo lift match */
+  color: white; border: none; border-radius: 25px;
+  cursor: pointer; transition: all 0.3s;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+}
+
+#btnNextQuestion:hover {
+  background: linear-gradient(135deg, #3730a3 0%, #5b21b6 100%);
+  transform: translateY(-2px); box-shadow: 0 8px 25px rgba(79, 70, 229, 0.6);
+}
+
+#quizFeedback {
+  min-height: 40px; font-size: 18px; font-weight: bold; margin: 20px 0;
+  text-align: center; padding: 15px; border-radius: 8px;
+  background: rgba(31, 41, 55, 0.8); /* Dark theme prominent box */
+  border: 1px solid #374151; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  color: #f3f4f6;
+}
