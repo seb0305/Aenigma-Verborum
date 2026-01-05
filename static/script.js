@@ -168,7 +168,7 @@ async function startQuizFlow() {
   showCurrentQuestion();
 }
 
-// Render one quiz question
+// Render one quiz question (Horizontal buttons like sorting)
 function showCurrentQuestion() {
   console.log("showCurrentQuestion", currentIndex, quizQuestions[currentIndex]);
   const q = quizQuestions[currentIndex];
@@ -184,15 +184,30 @@ function showCurrentQuestion() {
   feedbackDiv.textContent = "";
   nextBtn.style.display = "none";
 
+  // FORCE Horizontal Layout (matches .categories-container exactly)
+  optionsDiv.style.cssText = `
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 15px !important;
+    justify-content: center !important;
+    align-items: center !important;
+    margin: 30px 0 !important;
+    padding: 20px !important;
+    min-height: 120px
+  `;
+
   optionsDiv.innerHTML = "";
   q.options.forEach(opt => {
     const btn = document.createElement("button");
     btn.textContent = opt;
     btn.className = "quiz-option-btn";
     btn.onclick = () => submitChoice(opt, q);
+    btn.style.margin = "0 !important";  // Kill button margins
+    btn.style.flex = "0 0 auto";        // Fixed size like .category-box
     optionsDiv.appendChild(btn);
   });
 }
+
 
 // Handle answer click
 async function submitChoice(selectedOption, q) {

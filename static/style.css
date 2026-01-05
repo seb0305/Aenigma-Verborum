@@ -219,11 +219,11 @@ input:focus {
 
 /* Multiple Choice: Exact Sorting Quiz Style Match (Dark Theme Optimized) */
 .quiz-option-btn {
-  width: 200px; height: 80px; padding: 10px; margin: 8px;
+  width: 200px; height: 80px; padding: 10px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* .verb-card gradient */
   border: 3px dashed #a5b4fc; /* Theme dashed like #665 but lighter */
   border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
+  display: inline-flex; align-items: center; justify-content: center;
   font-weight: bold; font-size: 16px; color: #e5e7eb; /* Theme text */
   cursor: grab; user-select: none;
   box-shadow: 0 8px 20px rgba(0,0,0,0.5); /* Enhanced for dark bg */
@@ -265,4 +265,18 @@ input:focus {
   background: rgba(31, 41, 55, 0.8); /* Dark theme prominent box */
   border: 1px solid #374151; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
   color: #f3f4f6;
+}
+
+#quizOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  justify-content: center;
+  margin: 30px 0;
+  padding: 20px;
+}
+
+/* Container safety */
+#quizOptions > * {
+  flex-shrink: 0;
 }
