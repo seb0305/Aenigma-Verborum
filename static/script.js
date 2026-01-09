@@ -237,11 +237,13 @@ async function submitChoice(selectedOption, q) {
   const optionButtons = document.querySelectorAll(".quiz-option-btn");
   optionButtons.forEach(b => b.disabled = true);
 
-  document.getElementById("btnNextQuestion").style.display = "inline-block";
+  document.getElementById('btnNextQuestion').style.display = 'block';
 }
 
 // Next question button
 document.getElementById("btnNextQuestion").onclick = async () => {
+  // Hide immediately on click
+  document.getElementById("btnNextQuestion").style.display = 'none';
   currentIndex++;
   if (currentIndex >= quizQuestions.length) {
     await fetch(`${API_BASE}/quiz/finish`, {

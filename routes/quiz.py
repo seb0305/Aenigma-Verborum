@@ -115,9 +115,6 @@ def next_questions():
         max_wrong_responses = 3  # allow 3 “bad” attempts
         attempts = 0
 
-        # 2: Gemini API
-        messages = [system_msg, {"role": "user", "content": base_user_prompt}]  # Keep history
-
         while attempts < max_wrong_responses:
             attempts += 1
             try:

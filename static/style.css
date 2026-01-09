@@ -17,6 +17,7 @@ header {
 h1 {
   font-size: 1.4rem;
   margin: 0;
+  margin-bottom: 2rem;
 }
 
 .nav-bar {
@@ -74,6 +75,7 @@ thead {
 th, td {
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid #1f2937;
+  text-align: left
 }
 
 tr:nth-child(even) {
@@ -210,12 +212,23 @@ input:focus {
 }
 
 .next-btn {
-  margin-top: 20px; padding: 12px 30px; font-size: 16px; font-weight: bold;
-  background: #007bff; color: white; border: none; border-radius: 25px;
-  cursor: pointer; transition: all 0.3s;
+  display: block;
+  margin: 20px auto !important;   /* Centers horizontally */
+  padding: 12px 30px;
+  font-size: 16px;
+  font-weight: bold;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: all 0.3s;
 }
 
-.next-btn:hover { background: #0056b3; transform: translateY(-2px); }
+.next-btn:hover {
+  background: #0056b3;
+  transform: translateY(-2px);
+}
 
 /* Multiple Choice: Exact Sorting Quiz Style Match (Dark Theme Optimized) */
 .quiz-option-btn {
@@ -246,19 +259,6 @@ input:focus {
   color: #f87171; animation: shake 0.5s ease-out;
 }
 
-#btnNextQuestion {
-  margin-top: 20px; padding: 12px 30px; font-size: 16px; font-weight: bold;
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); /* Indigo lift match */
-  color: white; border: none; border-radius: 25px;
-  cursor: pointer; transition: all 0.3s;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
-}
-
-#btnNextQuestion:hover {
-  background: linear-gradient(135deg, #3730a3 0%, #5b21b6 100%);
-  transform: translateY(-2px); box-shadow: 0 8px 25px rgba(79, 70, 229, 0.6);
-}
-
 #quizFeedback {
   min-height: 40px; font-size: 18px; font-weight: bold; margin: 20px 0;
   text-align: center; padding: 15px; border-radius: 8px;
@@ -279,4 +279,26 @@ input:focus {
 /* Container safety */
 #quizOptions > * {
   flex-shrink: 0;
+}
+
+/* Latin word: Centered, prominent */
+.quiz-latin {
+    text-align: center;
+    font-size: 2.8rem;  /* Slightly larger */
+    font-weight: bold;
+    margin: 1rem auto 1.5rem;
+    color: #fef3c7;  /* Cream text for orange bg */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    /* Orange gradient container */
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%);
+    border: 3px solid #dc2626;  /* Red accent border */
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    box-shadow: 0 12px 30px rgba(249, 115, 22, 0.4),  /* Orange glow */
+                inset 0 2px 4px rgba(255,255,255,0.2); /* Inner shine */
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    max-width: 300px;
 }
