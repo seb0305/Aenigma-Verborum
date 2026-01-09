@@ -3,8 +3,8 @@ console.log("script.js loaded");
 const API_BASE = "http://localhost:5000/api";
 
 let quizRoundId = null;
-let quizQuestions = [];
-let currentIndex = 0;
+let mcVerbCount = 0;
+let sortingVerbCount = 0;
 
 /*
 Vocab section calls /api/vocab/ to list and create VocabEntry rows
@@ -152,37 +152,21 @@ async function startQuizFlow() {
   const startRes = await fetch(`${API_BASE}/quiz/start`, { method: "POST" });
   const startData = await startRes.json();
   quizRoundId = startData.quiz_round_id;
-
-  const qRes = await fetch(`${API_BASE}/quiz/next`);
-  quizQuestions = await qRes.json();
-  console.log("quizQuestions:", quizQuestions);
-
-  currentIndex = 0;
-
-  if (!quizQuestions || quizQuestions.length === 0) {
-    alert("No quiz questions available. Add vocab and/or lower accuracy first.");
-    return;
-  }
-
+  mcVerbCount = 0;
+  document.getElementById('mcCounter').textContent = '';  // Clear
   showSection("quiz");
-  showCurrentQuestion();
+  await loadNextMCQuestion();  // Loads 1st, sets "1/3"
 }
 
 // Render one quiz question (Horizontal buttons like sorting)
-function showCurrentQuestion() {
-  console.log("showCurrentQuestion", currentIndex, quizQuestions[currentIndex]);
-  const q = quizQuestions[currentIndex];
-
+function showCurrentQuestionStandalone(q) {
+  console.log("showCurrentQuestionStandalone", q);
   const wordDiv = document.getElementById("quizWord");
   const optionsDiv = document.getElementById("quizOptions");
   const feedbackDiv = document.getElementById("quizFeedback");
-  const nextBtn = document.getElementById("btnNextQuestion");
-
-  console.log("DOM quiz elements:", wordDiv, optionsDiv, feedbackDiv, nextBtn);
 
   wordDiv.textContent = q.latin_word;
   feedbackDiv.textContent = "";
-  nextBtn.style.display = "none";
 
   // FORCE Horizontal Layout (matches .categories-container exactly)
   optionsDiv.style.cssText = `
@@ -206,6 +190,38 @@ function showCurrentQuestion() {
     btn.style.flex = "0 0 auto";        // Fixed size like .category-box
     optionsDiv.appendChild(btn);
   });
+}
+
+async function loadNextMCQuestion() {
+  if (mcVerbCount >= 3) {
+    // EXACT sorting match
+    document.getElementById('quizFeedback').textContent = 'Multiple choice quiz complete! (3 words)';
+    alert('Multiple choice quiz complete!');
+    await fetch(`${API_BASE}/quiz/finish`, {  // Close round
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quiz_round_id: quizRoundId })
+    });
+    loadVocab();
+    showSection('vocab');
+    return;
+  }
+
+  const qRes = await fetch(`${API_BASE}/quiz/next?quizroundid=${quizRoundId}`);
+  const newQuestions = await qRes.json();
+  if (!newQuestions || newQuestions.length === 0) {
+    document.getElementById('quizFeedback').textContent = 'No more questions.';
+    return;
+  }
+
+  // Use first question (backend sends array, take [0])
+  const q = newQuestions[0];
+  showCurrentQuestionStandalone(q);  // New func below
+  document.getElementById('quizFeedback').textContent = `Choose the right answer! (${mcVerbCount + 1}/3 words)`;  // Initial instruction
+  mcVerbCount++;
+  document.getElementById('mcCounter').textContent = `${mcVerbCount}/3`;
+
+  document.getElementById('btnNextQuestion').style.display = 'none';
 }
 
 
@@ -242,21 +258,8 @@ async function submitChoice(selectedOption, q) {
 
 // Next question button
 document.getElementById("btnNextQuestion").onclick = async () => {
-  // Hide immediately on click
   document.getElementById("btnNextQuestion").style.display = 'none';
-  currentIndex++;
-  if (currentIndex >= quizQuestions.length) {
-    await fetch(`${API_BASE}/quiz/finish`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quiz_round_id: quizRoundId })
-    });
-    alert("Quiz finished!");
-    loadVocab();
-    showSection("vocab");
-  } else {
-    showCurrentQuestion();
-  }
+  await loadNextMCQuestion();  // Sequential next (no currentIndex)
 };
 
 // Load cards
@@ -285,10 +288,22 @@ let sortingRoundId = null;
 async function startSortingQuiz() {
   const res = await fetch(`${API_BASE}/quiz/verbs/start`, { method: 'POST' });
   sortingRoundId = (await res.json()).quizroundid;
+  sortingVerbCount = 0;  // Reset
+  document.getElementById('sortingCounter').textContent = '';  // Clear
   await loadNextSortingVerb();
 }
 
 async function loadNextSortingVerb() {
+    // Stop after 3 verbs
+  if (sortingVerbCount >= 3) {
+    document.getElementById('sortingFeedback').textContent = 'Sorting quiz complete! (3 verbs)';
+    document.getElementById('sortingCounter').textContent = '';
+    alert('Sorting quiz complete!');
+    loadVocab();
+    showSection('vocab');
+    return;
+  }
+
   const res = await fetch(`${API_BASE}/quiz/verbs/next?quizroundid=${sortingRoundId}`);
   const data = await res.json();
   if (data.error) {
@@ -298,9 +313,11 @@ async function loadNextSortingVerb() {
     showSection('vocab');
     return;
   }
+  sortingVerbCount++;
   currentVerbData = data;
   document.getElementById('verbCard').textContent = data.verb;
-  document.getElementById('sortingFeedback').textContent = 'Drag to category!';
+  document.getElementById('sortingCounter').textContent = `${sortingVerbCount}/3`;  // Header counter
+  document.getElementById('sortingFeedback').textContent = `Drag to category! (${sortingVerbCount}/3 verbs)`;
   resetCategories();
   // Re-attach drop listeners if needed
 }
