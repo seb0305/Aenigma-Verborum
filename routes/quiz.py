@@ -10,22 +10,12 @@ from sqlalchemy import func
 import frag_caesar_crawl4ai
 from extensions import db
 from models import VocabEntry, QuizRound, QuizAnswer, Card, UserCard
-from openai import OpenAI
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-# 1:OpenAI API
-#client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-#OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-
-# 2:Gemini API
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-client = OpenAI(
-    api_key=GEMINI_API_KEY,
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"  # Gemini OpenAI compat
-)
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
 
 class WrongOptions(BaseModel):
     options: list[str]
@@ -73,6 +63,7 @@ def start_quiz():
 
 @quiz_bp.get("/next")
 def next_questions():
+    client = current_app.config['client']
     user_id = get_current_user_id()
 
     # weak word condition: accuracy below 70% or fewer than 3 total answers
@@ -124,20 +115,24 @@ def next_questions():
         max_wrong_responses = 3  # allow 3 “bad” attempts
         attempts = 0
 
+        # 2: Gemini API
+        messages = [system_msg, {"role": "user", "content": base_user_prompt}]  # Keep history
+
         while attempts < max_wrong_responses:
             attempts += 1
             try:
+
                 resp = client.chat.completions.create(
                     model=OPENAI_MODEL,
+                    #model=GEMINI_MODEL,
                     messages=messages,
                     max_tokens=120,
                 )
                 content = resp.choices[0].message.content.strip()
-                current_app.logger.info("OpenAI content for %s (attempt %d): %s",
-                                        latin_word, attempts, content)
+                current_app.logger.info("AI content for %s (attempt %d): %s", latin_word, attempts, content)
                 wrong_options_raw = json.loads(content)
                 if not isinstance(wrong_options_raw, list):
-                    raise ValueError("OpenAI response is not a JSON list")
+                    raise ValueError("AI response is not a JSON list")
 
             except Exception as ex:
                 current_app.logger.error("OpenAI error for %s (attempt %d): %s",
@@ -148,6 +143,7 @@ def next_questions():
                     "Falsche Übersetzung 3",
                 ]
                 break  # fall through to filtering once, no further retries
+
 
             # Filter out any distractor that matches a real meaning
             filtered = []
