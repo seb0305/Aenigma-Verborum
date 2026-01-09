@@ -97,3 +97,9 @@ def get_verb_flexion_type(word: str) -> str:
         return []
 
     return first['flexion_type']
+
+
+if __name__ == "__main__":
+    print(get_german_meanings("petere"))
+    print(get_verb_flexion_type("petere"))
+    print(get_word_type("petere"))
