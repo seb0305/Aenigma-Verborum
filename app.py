@@ -11,13 +11,20 @@ from routes.vocab import vocab_bp
 from routes.quiz import quiz_bp
 from routes.cards import cards_bp
 from openai import OpenAI
+import google.generativeai as genai
 
-
-
+# 1:OpenAI API
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+# 2:Gemini API
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+genai.configure(api_key=GEMINI_API_KEY)
+
+# Global client for quiz.py
+#client = OpenAI(api_key=OPENAI_API_KEY) # 1:OpenAI API
+client = genai.GenerativeModel(GEMINI_MODEL) # 2:Gemini API
 
 def create_app():
     app = Flask(__name__)
