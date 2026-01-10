@@ -59,7 +59,7 @@ def add_vocab():
         # Auto classify
         try:
             word_type = frag_caesar_crawl4ai.get_word_type(latin)
-            flexion_type = frag_caesar_crawl4ai.get_verb_flexion_type(latin) if word_type == "Verb" else None
+            flexion_type = frag_caesar_crawl4ai.get_flexion_type(latin) if word_type == "Verb" or word_type == "Nomen" else None
         except:
             word_type, flexion_type = "unknown", None
 
@@ -92,7 +92,7 @@ def add_vocab():
 
         # Auto word_type
         word_type = frag_caesar_crawl4ai.get_word_type(latin)
-        flexion_type = frag_caesar_crawl4ai.get_verb_flexion_type(latin) if word_type == "Verb" else None
+        flexion_type = frag_caesar_crawl4ai.get_flexion_type(latin) if word_type == "Verb" or word_type == "Nomen" else None
 
         return jsonify({
             "latin_word": latin,
