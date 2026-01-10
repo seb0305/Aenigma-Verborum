@@ -83,7 +83,7 @@ def get_word_type(word: str) -> str:
 
     return first['type']
 
-def get_verb_flexion_type(word: str) -> str:
+def get_flexion_type(word: str) -> str:
     """
     Return a list of German meaning strings for the lemma.
     For now: only the first Kurzübersicht row.
@@ -93,13 +93,13 @@ def get_verb_flexion_type(word: str) -> str:
         return []
 
     first = rows[0]          # lemma row: Infinitiv
-    if not first['type'] == "Verb":
-        return []
 
     return first['flexion_type']
 
 
 if __name__ == "__main__":
     print(get_german_meanings("petere"))
-    print(get_verb_flexion_type("petere"))
+    print(get_flexion_type("petere"))
     print(get_word_type("petere"))
+
+    print(get_flexion_type("templum"))

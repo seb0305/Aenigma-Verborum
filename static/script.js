@@ -5,19 +5,18 @@ const API_BASE = "http://localhost:5000/api";
 let quizRoundId = null;
 let mcVerbCount = 0;
 let sortingVerbCount = 0;
+let nounsRoundId = null;
+let nounsCount = 0;
+let currentNounData = null;
+let currentVerbData = {};
+let sortingRoundId = null;
 
-/*
-Vocab section calls /api/vocab/ to list and create VocabEntry rows
- */
-const vocabSection = document.getElementById("vocabSection");
-/*
-Quiz section calls /api/quiz/
- */
-const quizSection = document.getElementById("quizSection");
-/*
-Cards section calls /api/cards/ to read the joined UserCard + Card + VocabEntry data
- */
-const cardsSection = document.getElementById("cardsSection");
+// Sections
+const vocabSection   = document.getElementById("vocabSection");
+const quizSection    = document.getElementById("quizSection");
+const cardsSection   = document.getElementById("cardsSection");
+const sortingSection = document.getElementById("sortingSection");
+const nounsSection   = document.getElementById("nounsSection");
 
 // Navigation wiring
 document.getElementById("btnHomeVocab").onclick = () => {
@@ -29,81 +28,82 @@ document.getElementById("btnHomeSorting").onclick = () => {
   showSection("sorting");
   startSortingQuiz();
 };
+document.getElementById("btnHomeNounSorting").onclick = () => {
+  showSection("nouns");
+  startNounsQuiz();
+};
 document.getElementById("btnHomeCards").onclick = () => loadCards();
 
 // Show/hide sections
 function showSection(name) {
   console.log("showSection", name);
-  vocabSection.style.display = name === "vocab" ? "block" : "none";
-  quizSection.style.display  = name === "quiz"  ? "block" : "none";
-  cardsSection.style.display = name === "cards" ? "block" : "none";
-  document.getElementById("sortingSection").style.display = name === "sorting" ? "block" : "none";
+  vocabSection.style.display   = name === "vocab"   ? "block" : "none";
+  quizSection.style.display    = name === "quiz"    ? "block" : "none";
+  cardsSection.style.display   = name === "cards"   ? "block" : "none";
+  sortingSection.style.display = name === "sorting" ? "block" : "none";
+  nounsSection.style.display   = name === "nouns"   ? "block" : "none";
 }
 
-// Load vocab table
+/* -------------------- Vocab Book -------------------- */
+
 let currentSortCol = null;
-let currentSortDir = 'asc';  // Global sort state
+let currentSortDir = "asc";
 
 async function loadVocab() {
-  const res = await fetch(`${API_BASE}/vocab/`);
+  const res  = await fetch(`${API_BASE}/vocab/`);
   const data = await res.json();
   renderVocabTable(data);
-  attachSortListeners();  // Wires clicks
+  attachSortListeners();
   attachTypeFilters();
 }
 
 function attachTypeFilters() {
-  document.querySelectorAll('.type-radio').forEach(radio => {
+  document.querySelectorAll(".type-radio").forEach(radio => {
     radio.onchange = filterByType;
   });
 }
 
 function filterByType() {
   const selectedType = document.querySelector('input[name="typeFilter"]:checked').value;
-
-  document.querySelectorAll('#vocabTable tbody tr').forEach(row => {
-    const typeCell = row.cells[2].textContent.toLowerCase();  // Type column
-    if (selectedType === 'all' || typeCell === selectedType) {
-      row.style.display = '';
-    } else {
-      row.style.display = 'none';
-    }
+  document.querySelectorAll("#vocabTable tbody tr").forEach(row => {
+    const typeCell = row.cells[2].textContent.toLowerCase();
+    row.style.display =
+      selectedType === "all" || typeCell === selectedType ? "" : "none";
   });
 }
 
-// Call in loadVocab(): attachTypeFilters();
-
-
 function renderVocabTable(data) {
-  // Apply sort
   data.sort((a, b) => {
-    let aVal = a[currentSortCol] ?? '';
-    let bVal = b[currentSortCol] ?? '';
-    if (currentSortCol === 'accuracy_percent') {
+    let aVal = a[currentSortCol] ?? "";
+    let bVal = b[currentSortCol] ?? "";
+    if (currentSortCol === "accuracy_percent") {
       aVal = parseFloat(aVal);
       bVal = parseFloat(bVal);
     }
-    if (aVal < bVal) return currentSortDir === 'asc' ? -1 : 1;
-    if (aVal > bVal) return currentSortDir === 'asc' ? 1 : -1;
+    if (aVal < bVal) return currentSortDir === "asc" ? -1 : 1;
+    if (aVal > bVal) return currentSortDir === "asc" ? 1 : -1;
     return 0;
   });
 
   const tbody = document.querySelector("#vocabTable tbody");
-  tbody.innerHTML = data.map(row => `
-    <tr>
-      <td>${row.latin_word}</td>
-      <td>${row.german_translation}</td>
-      <td>${row.word_type}</td>
-      <td>${row.accuracy_percent.toFixed(1)}%</td>
-      <td>${row.has_bronze_card ? "🟤" : ""}</td>
-      <td>
-        <button class="small-btn" data-action="edit" data-id="${row.id}">Edit</button>
-        <button class="small-btn" data-action="delete" data-id="${row.id}">Delete</button>
-      </td>
-    </tr>
-  `).join('');
+  tbody.innerHTML = data
+    .map(
+      row => `
+      <tr>
+        <td>${row.latin_word}</td>
+        <td>${row.german_translation}</td>
+        <td>${row.word_type}</td>
+        <td>${row.accuracy_percent.toFixed(1)}%</td>
+        <td>${row.has_bronze_card ? "🟤" : ""}</td>
+        <td>
+          <button class="small-btn" data-action="edit" data-id="${row.id}">Edit</button>
+          <button class="small-btn" data-action="delete" data-id="${row.id}">Delete</button>
+        </td>
+      </tr>
+    `
+    )
+    .join("");
 
-  // Re-attach buttons
   tbody.querySelectorAll('button[data-action="edit"]').forEach(btn => {
     btn.onclick = () => editVocab(btn.dataset.id);
   });
@@ -113,42 +113,42 @@ function renderVocabTable(data) {
 }
 
 function attachSortListeners() {
-  document.querySelectorAll('.sortable').forEach(th => {
+  document.querySelectorAll(".sortable").forEach(th => {
     th.onclick = () => {
       const col = th.dataset.col;
       if (currentSortCol === col) {
-        currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+        currentSortDir = currentSortDir === "asc" ? "desc" : "asc";
       } else {
         currentSortCol = col;
-        currentSortDir = 'asc';
+        currentSortDir = "asc";
       }
-      // Update visuals
-      document.querySelectorAll('.sortable').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+      document
+        .querySelectorAll(".sortable")
+        .forEach(h => h.classList.remove("sort-asc", "sort-desc"));
       th.classList.add(`sort-${currentSortDir}`);
-      // Refresh sorted
       loadVocab();
     };
   });
 }
 
 async function editVocab(id) {
-  // simple prompt-based editing for Milestone 1
-  const currentRow = Array.from(document.querySelectorAll("#vocabTable tbody tr"))
-    .find(tr => tr.querySelector("button[data-id='" + id + "']"));
+  const currentRow = Array.from(
+    document.querySelectorAll("#vocabTable tbody tr")
+  ).find(tr => tr.querySelector("button[data-id='" + id + "']"));
 
   if (!currentRow) return;
 
-  const latinCell = currentRow.children[0];
+  const latinCell  = currentRow.children[0];
   const germanCell = currentRow.children[1];
 
-  const currentLatin = latinCell.textContent;
+  const currentLatin  = latinCell.textContent;
   const currentGerman = germanCell.textContent;
 
   const newLatin = prompt("Edit Latin word:", currentLatin);
-  if (newLatin === null) return; // cancel
+  if (newLatin === null) return;
 
   const newGerman = prompt("Edit German translation:", currentGerman);
-  if (newGerman === null) return; // cancel
+  if (newGerman === null) return;
 
   const res = await fetch(`${API_BASE}/vocab/${id}`, {
     method: "PUT",
@@ -170,9 +170,7 @@ async function editVocab(id) {
 async function deleteVocab(id) {
   if (!confirm("Really delete this vocab entry?")) return;
 
-  const res = await fetch(`${API_BASE}/vocab/${id}`, {
-    method: "DELETE"
-  });
+  const res = await fetch(`${API_BASE}/vocab/${id}`, { method: "DELETE" });
 
   if (!res.ok) {
     alert("Error deleting vocab entry.");
@@ -183,24 +181,29 @@ async function deleteVocab(id) {
 }
 
 // Add vocab form
-document.getElementById("addVocabForm").onsubmit = async (e) => {
+document.getElementById("addVocabForm").onsubmit = async e => {
   e.preventDefault();
-  const latin = e.target.latin.value.trim();
+  const latin  = e.target.latin.value.trim();
   const german = e.target.german.value.trim();
-  if (!latin) return alert('Latin required');
+  if (!latin) return alert("Latin required");
 
   const body = { latin_word: latin };
   if (german) body.german_translation = german;
 
-  const res = await fetch(`${API_BASE}/vocab/`, {
+  const res  = await fetch(`${API_BASE}/vocab/`, {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
   const data = await res.json();
 
   if (data.translations && data.translations.length) {
-    showTranslationButtons(data.latin_word, data.translations, data.word_type, data.flexion_type);
+    showTranslationButtons(
+      data.latin_word,
+      data.translations,
+      data.word_type,
+      data.flexion_type
+    );
   } else {
     e.target.reset();
     loadVocab();
@@ -208,59 +211,62 @@ document.getElementById("addVocabForm").onsubmit = async (e) => {
 };
 
 function showTranslationButtons(latin, translations, word_type, flexion_type) {
-  document.getElementById('addVocabForm').style.display = 'none';
-  document.getElementById('translationOptions').style.display = 'block';
+  document.getElementById("addVocabForm").style.display = "none";
+  document.getElementById("translationOptions").style.display = "block";
 
-  const buttonsDiv = document.getElementById('transButtons');
-  buttonsDiv.innerHTML = translations.map((trans, i) => `
-    <button class="trans-btn" onclick="selectTranslation('${latin}', '${trans}', '${word_type}', '${flexion_type}')">
-      ${i+1}. ${trans}
+  const buttonsDiv = document.getElementById("transButtons");
+  buttonsDiv.innerHTML = translations
+    .map(
+      (trans, i) => `
+    <button class="trans-btn"
+      onclick="selectTranslation('${latin}', '${trans}', '${word_type}', '${flexion_type}')">
+      ${i + 1}. ${trans}
     </button>
-  `).join('<br>');
+  `
+    )
+    .join("<br>");
 }
 
 async function selectTranslation(latin, german, word_type, flexion_type) {
-  const res = await fetch(`${API_BASE}/vocab/`, {
+  await fetch(`${API_BASE}/vocab/`, {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       latin_word: latin,
       german_translation: german,
-      word_type: word_type,
-      flexion_type: flexion_type
+      word_type,
+      flexion_type
     })
   });
 
-  document.getElementById('translationOptions').style.display = 'none';
-  document.getElementById('addVocabForm').style.display = 'block';
-  document.getElementById('addVocabForm').reset();
+  document.getElementById("translationOptions").style.display = "none";
+  const form = document.getElementById("addVocabForm");
+  form.style.display = "block";
+  form.reset();
   loadVocab();
 }
 
+/* -------------------- Multiple Choice Quiz -------------------- */
 
-// Start quiz (multiple choice)
 async function startQuizFlow() {
   console.log("startQuizFlow called");
-  const startRes = await fetch(`${API_BASE}/quiz/start`, { method: "POST" });
+  const startRes  = await fetch(`${API_BASE}/quiz/start`, { method: "POST" });
   const startData = await startRes.json();
-  quizRoundId = startData.quiz_round_id;
-  mcVerbCount = 0;
-  document.getElementById('mcCounter').textContent = '';  // Clear
+  quizRoundId     = startData.quiz_round_id;
+  mcVerbCount     = 0;
+  document.getElementById("mcCounter").textContent = "";
   showSection("quiz");
-  await loadNextMCQuestion();  // Loads 1st, sets "1/3"
+  await loadNextMCQuestion();
 }
 
-// Render one quiz question (Horizontal buttons like sorting)
 function showCurrentQuestionStandalone(q) {
-  console.log("showCurrentQuestionStandalone", q);
-  const wordDiv = document.getElementById("quizWord");
-  const optionsDiv = document.getElementById("quizOptions");
+  const wordDiv     = document.getElementById("quizWord");
+  const optionsDiv  = document.getElementById("quizOptions");
   const feedbackDiv = document.getElementById("quizFeedback");
 
-  wordDiv.textContent = q.latin_word;
+  wordDiv.textContent     = q.latin_word;
   feedbackDiv.textContent = "";
 
-  // FORCE Horizontal Layout (matches .categories-container exactly)
   optionsDiv.style.cssText = `
     display: flex !important;
     flex-wrap: wrap !important;
@@ -276,50 +282,47 @@ function showCurrentQuestionStandalone(q) {
   q.options.forEach(opt => {
     const btn = document.createElement("button");
     btn.textContent = opt;
-    btn.className = "quiz-option-btn";
-    btn.onclick = () => submitChoice(opt, q);
-    btn.style.margin = "0 !important";  // Kill button margins
-    btn.style.flex = "0 0 auto";        // Fixed size like .category-box
+    btn.className   = "quiz-option-btn";
+    btn.onclick     = () => submitChoice(opt, q);
+    btn.style.margin = "0 !important";
+    btn.style.flex   = "0 0 auto";
     optionsDiv.appendChild(btn);
   });
 }
 
 async function loadNextMCQuestion() {
   if (mcVerbCount >= 3) {
-    // EXACT sorting match
-    document.getElementById('quizFeedback').textContent = 'Multiple choice quiz complete! (3 words)';
-    alert('Multiple choice quiz complete!');
-    await fetch(`${API_BASE}/quiz/finish`, {  // Close round
+    document.getElementById("quizFeedback").textContent =
+      "Multiple choice quiz complete! (3 words)";
+    alert("Multiple choice quiz complete!");
+    await fetch(`${API_BASE}/quiz/finish`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ quiz_round_id: quizRoundId })
     });
     loadVocab();
-    showSection('vocab');
+    showSection("vocab");
     return;
   }
 
-  const qRes = await fetch(`${API_BASE}/quiz/next?quizroundid=${quizRoundId}`);
+  const qRes         = await fetch(`${API_BASE}/quiz/next?quizroundid=${quizRoundId}`);
   const newQuestions = await qRes.json();
   if (!newQuestions || newQuestions.length === 0) {
-    document.getElementById('quizFeedback').textContent = 'No more questions.';
+    document.getElementById("quizFeedback").textContent = "No more questions.";
     return;
   }
 
-  // Use first question (backend sends array, take [0])
   const q = newQuestions[0];
-  showCurrentQuestionStandalone(q);  // New func below
-  document.getElementById('quizFeedback').textContent = `Choose the right answer! (${mcVerbCount + 1}/3 words)`;  // Initial instruction
+  showCurrentQuestionStandalone(q);
+  document.getElementById("quizFeedback").textContent =
+    `Choose the right answer! (${mcVerbCount + 1}/3 words)`;
   mcVerbCount++;
-  document.getElementById('mcCounter').textContent = `${mcVerbCount}/3`;
-
-  document.getElementById('btnNextQuestion').style.display = 'none';
+  document.getElementById("mcCounter").textContent = `${mcVerbCount}/3`;
+  document.getElementById("btnNextQuestion").style.display = "none";
 }
 
-
-// Handle answer click
 async function submitChoice(selectedOption, q) {
-  const res = await fetch(`${API_BASE}/quiz/answer`, {
+  const res  = await fetch(`${API_BASE}/quiz/answer`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -332,7 +335,6 @@ async function submitChoice(selectedOption, q) {
 
   let msg = data.correct ? "Correct!" : "Wrong.";
   msg += ` | Accuracy now: ${data.accuracy_percent.toFixed(1)}%`;
-
   if (data.card_change === "created") {
     msg += " | Bronze card unlocked!";
   } else if (data.card_change === "removed") {
@@ -341,24 +343,21 @@ async function submitChoice(selectedOption, q) {
 
   document.getElementById("quizFeedback").textContent = msg;
 
-  // Disable buttons after answer
-  const optionButtons = document.querySelectorAll(".quiz-option-btn");
-  optionButtons.forEach(b => b.disabled = true);
-
-  document.getElementById('btnNextQuestion').style.display = 'block';
+  document.querySelectorAll(".quiz-option-btn").forEach(b => (b.disabled = true));
+  document.getElementById("btnNextQuestion").style.display = "block";
 }
 
-// Next question button
 document.getElementById("btnNextQuestion").onclick = async () => {
-  document.getElementById("btnNextQuestion").style.display = 'none';
-  await loadNextMCQuestion();  // Sequential next (no currentIndex)
+  document.getElementById("btnNextQuestion").style.display = "none";
+  await loadNextMCQuestion();
 };
 
-// Load cards
+/* -------------------- Cards -------------------- */
+
 async function loadCards() {
-  const res = await fetch(`${API_BASE}/cards/`);
+  const res   = await fetch(`${API_BASE}/cards/`);
   const cards = await res.json();
-  const grid = document.getElementById("cardsGrid");
+  const grid  = document.getElementById("cardsGrid");
   grid.innerHTML = "";
   cards.forEach(c => {
     const div = document.createElement("div");
@@ -373,116 +372,180 @@ async function loadCards() {
   showSection("cards");
 }
 
-// DB-Driven Sorting Quiz (ersetzt hardcoded)
-let currentVerbData = {};
-let sortingRoundId = null;
+/* -------------------- Verb Sorting Quiz -------------------- */
 
 async function startSortingQuiz() {
-  const res = await fetch(`${API_BASE}/quiz/verbs/start`, { method: 'POST' });
-  sortingRoundId = (await res.json()).quizroundid;
-  sortingVerbCount = 0;  // Reset
-  document.getElementById('sortingCounter').textContent = '';  // Clear
+  const res = await fetch(`${API_BASE}/quiz/verbs/start`, { method: "POST" });
+  sortingRoundId      = (await res.json()).quizroundid;
+  sortingVerbCount    = 0;
+  document.getElementById("sortingCounter").textContent = "";
   await loadNextSortingVerb();
 }
 
 async function loadNextSortingVerb() {
-    // Stop after 3 verbs
   if (sortingVerbCount >= 3) {
-    document.getElementById('sortingFeedback').textContent = 'Sorting quiz complete! (3 verbs)';
-    document.getElementById('sortingCounter').textContent = '';
-    alert('Sorting quiz complete!');
+    document.getElementById("sortingFeedback").textContent =
+      "Sorting quiz complete! (3 verbs)";
+    document.getElementById("sortingCounter").textContent = "";
+    alert("Sorting quiz complete!");
     loadVocab();
-    showSection('vocab');
+    showSection("vocab");
     return;
   }
 
-  const res = await fetch(`${API_BASE}/quiz/verbs/next?quizroundid=${sortingRoundId}`);
+  const res  = await fetch(
+    `${API_BASE}/quiz/verbs/next?quizroundid=${sortingRoundId}`
+  );
   const data = await res.json();
   if (data.error) {
-    document.getElementById('sortingFeedback').textContent = data.error;
-    alert('Sorting quiz complete! All verbs covered.');
+    document.getElementById("sortingFeedback").textContent = data.error;
+    alert("Sorting quiz complete! All verbs covered.");
     loadVocab();
-    showSection('vocab');
+    showSection("vocab");
     return;
   }
+
   sortingVerbCount++;
   currentVerbData = data;
-  document.getElementById('verbCard').textContent = data.verb;
-  document.getElementById('sortingCounter').textContent = `${sortingVerbCount}/3`;  // Header counter
-  document.getElementById('sortingFeedback').textContent = `Drag to category! (${sortingVerbCount}/3 verbs)`;
-  resetCategories();
-  // Re-attach drop listeners if needed
+  document.getElementById("verbCard").textContent = data.verb;
+  document.getElementById("sortingCounter").textContent =
+    `${sortingVerbCount}/3`;
+  document.getElementById("sortingFeedback").textContent =
+    `Drag to category! (${sortingVerbCount}/3 verbs)`;
+  resetVerbCategories();
+  document.getElementById("btnNextVerb").style.display = "none";
 }
 
-
-// Drag-Drop (update drop handler)
-document.querySelectorAll('.category-box').forEach(box => {
-  box.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    const category = box.dataset.category;
-
-    const res = await fetch(`${API_BASE}/quiz/verbs/answer`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        quizroundid: sortingRoundId,
-        verb: currentVerbData.verb,  // ← FIX: currentVerbData!
-        category
-      })
-    });
-
-    const result = await res.json();
-    box.classList.add(result.correct ? 'correct' : 'wrong');
-    box.innerHTML += ` (${result.message})`;
-
-    document.getElementById('sortingFeedback').innerHTML =
-      `<strong>${result.message}</strong> ${result.score.toFixed(1)}%`;
-
-    document.getElementById('btnNextVerb').style.display = 'inline-block';
-  });
-});
-
-document.getElementById('btnNextVerb').onclick = loadNextSortingVerb;
-
-function resetCategories() {
-  document.querySelectorAll('.category-box').forEach(box => {
-    box.classList.remove('correct', 'wrong');
+function resetVerbCategories() {
+  document.querySelectorAll("#sortingQuizArea .category-box").forEach(box => {
+    box.classList.remove("correct", "wrong");
     box.innerHTML = box.dataset.category;
   });
 }
 
-document.getElementById('verbCard').addEventListener('dragstart', e => {
-  e.dataTransfer.setData('text/plain', '');  // Required for Firefox
-});
+async function handleVerbDrop(e) {
+  e.preventDefault();
+  const box      = e.currentTarget;
+  const category = box.dataset.category;
 
-document.querySelectorAll('.category-box').forEach(box => {
-  box.addEventListener('dragover', e => e.preventDefault());
-  box.addEventListener('drop', async e => {  // Existing async handler
-    e.preventDefault();
-    const category = box.dataset.category;
-    try {
-      const res = await fetch(`${APIBASE}/quiz/verbsanswer`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          quizroundid: sortingRoundId,
-          verb: currentVerbData.verb,
-          category: category
-        })
-      });
-      const result = await res.json();
-      box.classList.add(result.correct ? 'correct' : 'wrong');
-      box.innerHTML = result.message;
-      document.getElementById('sortingFeedback').innerHTML = `<strong>${result.message}</strong> ${result.score.toFixed(1)}%`;
-      document.getElementById('btnNextVerb').style.display = 'inline-block';
-    } catch (err) {
-      console.error('Drop error:', err);
-      document.getElementById('sortingFeedback').textContent = 'Error submitting answer';
-    }
+  const res    = await fetch(`${API_BASE}/quiz/verbs/answer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      quizroundid: sortingRoundId,
+      verb: currentVerbData.verb,
+      category
+    })
   });
+  const result = await res.json();
+
+  box.classList.add(result.correct ? "correct" : "wrong");
+  box.innerHTML = `${box.dataset.category} (${result.message})`;
+  document.getElementById("sortingFeedback").innerHTML =
+    `<strong>${result.message}</strong> ${result.score.toFixed(1)}%`;
+  document.getElementById("btnNextVerb").style.display = "inline-block";
+}
+
+document.getElementById("verbCard").addEventListener("dragstart", e => {
+  e.dataTransfer.setData("text/plain", "");
 });
 
+document
+  .querySelectorAll("#sortingQuizArea .category-box")
+  .forEach(box => {
+    box.addEventListener("dragover", e => e.preventDefault());
+    box.addEventListener("drop", handleVerbDrop);
+  });
 
-// initial load
+document.getElementById("btnNextVerb").onclick = () => {
+  document.getElementById("btnNextVerb").style.display = "none";
+  loadNextSortingVerb();
+};
+
+/* -------------------- Noun Sorting Quiz -------------------- */
+
+async function startNounsQuiz() {
+  const res = await fetch(`${API_BASE}/quiz/nouns/start`, { method: "POST" });
+  nounsRoundId = (await res.json()).quizroundid;
+  nounsCount   = 0;
+  await loadNextNounsNoun();
+}
+
+async function loadNextNounsNoun() {
+  // ✅ STOP after 3 nouns (exact verb match)
+  if (nounsCount >= 3) {
+    document.getElementById("nounsFeedback").textContent = "Noun quiz complete! (3 nouns)";
+    document.getElementById("nounsCounter").textContent = "";
+    alert("Noun Sorting Quiz complete!");
+    loadVocab();
+    showSection("vocab");
+    return;
+  }
+
+  const res  = await fetch(`${API_BASE}/quiz/nouns/next?quizroundid=${nounsRoundId}`);
+  const data = await res.json();
+  if (data.error) {
+    alert(data.error);
+    loadVocab();
+    showSection("vocab");
+    return;
+  }
+
+  currentNounData = data;
+  document.getElementById("nounCard").textContent = data.noun;
+  document.getElementById("nounsCounter").textContent = `${++nounsCount}/3`;  // ✅ Increments 1→2→3
+  document.getElementById("nounsFeedback").textContent = "Drag to declension!";
+  resetNounCategories();
+  document.getElementById("btnNextNoun").style.display = "none";
+}
+
+function resetNounCategories() {
+  document.querySelectorAll("#nounCategories .category-box").forEach(box => {
+    box.classList.remove("correct", "wrong");
+    box.innerHTML = box.dataset.category;
+  });
+}
+
+async function handleNounDrop(e) {
+  e.preventDefault();
+  const box      = e.currentTarget;
+  const category = box.dataset.category;
+
+  const res    = await fetch(`${API_BASE}/quiz/nouns/answer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      quizroundid: nounsRoundId,
+      noun: currentNounData.noun,
+      category
+    })
+  });
+  const result = await res.json();
+
+  box.classList.add(result.correct ? "correct" : "wrong");
+  box.innerHTML = result.message;
+  document.getElementById("nounsFeedback").innerHTML =
+    `Accuracy: ${result.score.toFixed(1)}`;
+  document.getElementById("btnNextNoun").style.display = "inline-block";
+}
+
+document.getElementById("nounCard").addEventListener("dragstart", e => {
+  e.dataTransfer.setData("text/plain", "");
+});
+
+document
+  .querySelectorAll("#nounsQuizArea .category-box")
+  .forEach(box => {
+    box.addEventListener("dragover", e => e.preventDefault());
+    box.addEventListener("drop", handleNounDrop);
+  });
+
+document.getElementById("btnNextNoun").onclick = () => {
+  document.getElementById("btnNextNoun").style.display = "none";
+  loadNextNounsNoun();
+};
+
+/* -------------------- Initial Load -------------------- */
+
 loadVocab();
 showSection("vocab");

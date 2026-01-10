@@ -342,3 +342,24 @@ input:focus {
   cursor: pointer;
 }
 .trans-btn:hover { background: #374151; }
+
+/* NOUN ONLY: Large boxes, exact 2 rows (4+3) */
+#nounsQuizArea #nounCategories {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 15px !important;
+  justify-content: center !important;
+  max-width: 1100px !important;  /* Wider container */
+}
+
+#nounsQuizArea .category-box {
+  flex: 0 0 220px !important;    /* Larger: fits 4/row */
+  min-height: 85px !important;   /* Taller boxes */
+  max-width: 240px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  font-size: 1.1em !important;   /* Readable text */
+}
+

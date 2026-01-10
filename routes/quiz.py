@@ -437,6 +437,94 @@ def verbs_answer():
         "message": "Richtig!" if is_correct else "Falsch!"
     })
 
+@quiz_bp.route('/nouns/start', methods=['POST'])
+def nouns_start():  # Copy of verbs_start
+    user_id = get_current_user_id()
+    qr = QuizRound(user_id=user_id)
+    db.session.add(qr)
+    db.session.commit()
+    return jsonify({"quizroundid": qr.id})
+
+@quiz_bp.route('/nouns/next')
+def nouns_next():  # Copy of verbs_next → word_type="Noun"
+    user_id = get_current_user_id()
+    current_round = QuizRound.query.filter(
+        QuizRound.user_id == user_id, QuizRound.finished_at.is_(None)
+    ).order_by(QuizRound.id.desc()).first()
+    if not current_round:
+        return jsonify({"error": "No active sorting quiz round"}), 404
+
+    asked_ids = db.session.query(QuizAnswer.vocab_entry_id).filter(
+        QuizAnswer.quiz_round_id == current_round.id
+    ).subquery()
+
+    noun = VocabEntry.query.filter(
+        VocabEntry.user_id == user_id,
+        VocabEntry.word_type == "Nomen",
+        VocabEntry.flexion_type.isnot(None),
+        ~VocabEntry.id.in_(asked_ids)
+    ).order_by(func.random()).first()
+
+    if not noun:
+        current_round.finished_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({"error": "Quiz complete! All nouns covered."}), 404
+
+    return jsonify({'noun': noun.latin_word, 'correct_category': noun.flexion_type})
+
+@quiz_bp.route('/nouns/answer', methods=['POST'])
+def nouns_answer():  # Copy of verbs_answer → 'noun'
+    user_id = get_current_user_id()
+    data = request.get_json()
+    noun = data['noun']  # vs 'verb'
+    category = data['category']
+
+    # Find vocab entry by latin_word
+    entry = VocabEntry.query.filter_by(
+        user_id=user_id,
+        latin_word=noun
+    ).first()
+
+    if not entry:
+        return jsonify({"error": "Noun not found"}), 404
+
+    # Find active round
+    current_round = QuizRound.query.filter(
+        QuizRound.user_id == user_id,
+        QuizRound.finished_at.is_(None)
+    ).order_by(QuizRound.id.desc()).first()
+
+    if not current_round:
+        return jsonify({"error": "No active quiz round"}), 404
+
+    # Check answer
+    is_correct = (category == entry.flexion_type)
+
+    # Create QuizAnswer record
+    qa = QuizAnswer(
+        quiz_round_id=current_round.id,
+        vocab_entry_id=entry.id,
+        was_correct=is_correct
+    )
+    db.session.add(qa)
+
+    # Update vocab stats
+    entry.total_answers += 1
+    if is_correct:
+        entry.correct_answers += 1
+    entry.accuracy_percent = (entry.correct_answers / entry.total_answers) * 100
+
+    db.session.commit()
+
+    message = "Richtig!" if is_correct else "Falsch!"
+    return jsonify({
+        "correct": is_correct,
+        "score": entry.accuracy_percent,
+        "message": message
+    })
+
+
+
 # lets the DB store complete round histories
 @quiz_bp.post("/finish")
 def finish_quiz():
