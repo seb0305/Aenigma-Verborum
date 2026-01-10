@@ -302,3 +302,30 @@ input:focus {
     text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     max-width: 300px;
 }
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.sort-arrow {
+  font-size: 0.8em;
+  transition: transform 0.2s;
+}
+.sort-asc .sort-arrow { transform: rotate(-180deg); } /* ↑ */
+.sort-desc .sort-arrow { } /* ▽ default */
+.sort-asc, .sort-desc { font-weight: bold; }
+
+
+.filter-sidebar {
+  float: right;
+  width: 150px;
+  margin-left: 20px;
+  padding: 1rem;
+  background: #020617;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+}
+.filter-sidebar h3 { margin-top: 0; font-size: 1rem; }
+.filter-sidebar label { display: block; cursor: pointer; margin: 0.5rem 0; }
+.filter-sidebar input[type="checkbox"] { margin-right: 0.5rem; }
+.vocab-container { overflow: hidden; } /* Clear float */

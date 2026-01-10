@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from extensions import db
 from models import VocabEntry
 import frag_caesar_crawl4ai
+from sqlalchemy import or_
 
 vocab_bp = Blueprint("vocab", __name__)
 
@@ -13,18 +14,29 @@ def get_current_user_id():
 @vocab_bp.get("/")
 def list_vocab():
     user_id = get_current_user_id()
-    entries = VocabEntry.query.filter_by(user_id=user_id).order_by(VocabEntry.created_at.desc()).all()
+    query = VocabEntry.query.filter_by(user_id=user_id).order_by(VocabEntry.created_at.desc())
 
-    return jsonify([
-        {
-            "id": e.id,
-            "latin_word": e.latin_word,
-            "german_translation": e.german_translation,
-            "accuracy_percent": e.accuracy_percent,
-            "has_bronze_card": e.has_bronze_card,
-        }
-        for e in entries
-    ])
+    # Type filter
+    word_type = request.args.get('type')
+    if word_type:
+        query = query.filter_by(word_type=word_type)
+
+    # Live search
+    search = request.args.get('search', '').strip()
+    if search:
+        query = query.filter(
+            or_(
+                VocabEntry.latin_word.ilike(f'%{search}%'),
+                VocabEntry.german_translation.ilike(f'%{search}%')
+            )
+        )
+
+    entries = query.all()
+    return jsonify([{
+        "id": e.id, "latin_word": e.latin_word, "german_translation": e.german_translation,
+        "accuracy_percent": e.accuracy_percent, "has_bronze_card": e.has_bronze_card,
+        "word_type": e.word_type,  # ✅ Already exposed
+    } for e in entries])
 
 # new VocabEntry-row for the current user
 @vocab_bp.post("/")

@@ -16,6 +16,8 @@
 
   <section id="vocabSection" style="display:none;">
     <h2>Vocab Book</h2>
+
+
     <form id="addVocabForm">
       <input name="latin" placeholder="Latin" required>
       <input name="german" placeholder="German (optional)">
@@ -24,15 +26,24 @@
 <table id="vocabTable">
   <thead>
     <tr>
-      <th>Latin</th>
-      <th>German</th>
-      <th>Accuracy</th>
+      <th data-col="latin_word" class="sortable">Latin <span class="sort-arrow">▽</span></th>
+      <th data-col="german_translation" class="sortable">German <span class="sort-arrow">▽</span></th>
+      <th data-col="word_type" class="sortable">Type <span class="sort-arrow">▽</span></th>
+      <th data-col="accuracy_percent" class="sortable">Accuracy <span class="sort-arrow">▽</span></th>
       <th>Card</th>
       <th>Actions</th>
     </tr>
   </thead>
   <tbody></tbody>
 </table>
+<div class="filter-sidebar">
+  <h3>Type Filter</h3>
+  <label><input type="radio" name="typeFilter" value="all" class="type-radio" checked> All</label><br>
+  <label><input type="radio" name="typeFilter" value="nomen" class="type-radio"> Nomen</label><br>
+  <label><input type="radio" name="typeFilter" value="verb" class="type-radio"> Verb</label><br>
+  <label><input type="radio" name="typeFilter" value="adjektiv" class="type-radio"> Adjektiv</label>
+</div>
+
   </section>
 
 <section id="quizSection" class="panel">
