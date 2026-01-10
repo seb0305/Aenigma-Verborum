@@ -1,6 +1,7 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from extensions import db
 from models import VocabEntry
+import json
 import frag_caesar_crawl4ai
 from sqlalchemy import or_
 
@@ -49,6 +50,61 @@ def add_vocab():
     if not latin:
         return jsonify({"error": "latin_word required"}), 400
 
+    # Check if already exists
+    if VocabEntry.query.filter_by(user_id=user_id, latin_word=latin).first():
+        return jsonify({"error": "Latin word already exists"}), 409
+
+    # Save if german provided
+    if german and german.strip():
+        # Auto classify
+        try:
+            word_type = frag_caesar_crawl4ai.get_word_type(latin)
+            flexion_type = frag_caesar_crawl4ai.get_verb_flexion_type(latin) if word_type == "Verb" else None
+        except:
+            word_type, flexion_type = "unknown", None
+
+        entry = VocabEntry(
+            user_id=user_id, latin_word=latin, german_translation=german,
+            word_type=word_type, flexion_type=flexion_type
+        )
+        db.session.add(entry)
+        db.session.commit()
+        return jsonify({"id": entry.id}), 201
+
+    # No german → OpenAI translations
+    client = current_app.config['client']
+    messages = [{
+        "role": "user",
+        "content": f"List exactly 3 most common German translations for Latin '{latin}' as JSON array only (no other text): [\"trans1\", \"trans2\", \"trans3\"]. Example: amare → [\"lieben\", \"mögen\", \"hasse\"]"
+    }]
+
+    try:
+        resp = client.chat.completions.create(
+            model=current_app.config['OPENAI_MODEL'],
+            messages=messages,
+            max_tokens=120,
+        )
+        content = resp.choices[0].message.content.strip()
+        current_app.logger.info("OpenAI translations for %s: %s", latin, content)
+        translations = json.loads(content)
+        if not isinstance(translations, list) or len(translations) != 3:
+            raise ValueError("Invalid translation list")
+
+        # Auto word_type
+        word_type = frag_caesar_crawl4ai.get_word_type(latin)
+        flexion_type = frag_caesar_crawl4ai.get_verb_flexion_type(latin) if word_type == "Verb" else None
+
+        return jsonify({
+            "latin_word": latin,
+            "word_type": word_type,
+            "flexion_type": flexion_type,
+            "translations": translations
+        }), 200
+
+    except Exception as ex:
+        current_app.logger.error("OpenAI error for %s: %s", latin, ex)
+        return jsonify({"error": "Translation failed"}), 500
+    """
     if not german:
         # TODO: In later stage, call AI here to propose translations.
         # For now return suggestions so frontend can ask again.
@@ -74,6 +130,9 @@ def add_vocab():
     db.session.commit()
 
     return jsonify({"id": entry.id}), 201
+    """
+
+
 
 @vocab_bp.put("/<int:entry_id>")
 def update_vocab(entry_id):

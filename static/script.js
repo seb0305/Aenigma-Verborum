@@ -185,27 +185,58 @@ async function deleteVocab(id) {
 // Add vocab form
 document.getElementById("addVocabForm").onsubmit = async (e) => {
   e.preventDefault();
-  const latin = e.target.latin.value;
-  const german = e.target.german.value;
+  const latin = e.target.latin.value.trim();
+  const german = e.target.german.value.trim();
+  if (!latin) return alert('Latin required');
+
+  const body = { latin_word: latin };
+  if (german) body.german_translation = german;
 
   const res = await fetch(`${API_BASE}/vocab/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      latin_word: latin,
-      german_translation: german || null
-    })
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body)
   });
   const data = await res.json();
 
-
-  if (data.need_translation_choice) {
-    alert("AI suggestions: " + data.suggestions.join(", "));
+  if (data.translations && data.translations.length) {
+    showTranslationButtons(data.latin_word, data.translations, data.word_type, data.flexion_type);
   } else {
     e.target.reset();
     loadVocab();
   }
 };
+
+function showTranslationButtons(latin, translations, word_type, flexion_type) {
+  document.getElementById('addVocabForm').style.display = 'none';
+  document.getElementById('translationOptions').style.display = 'block';
+
+  const buttonsDiv = document.getElementById('transButtons');
+  buttonsDiv.innerHTML = translations.map((trans, i) => `
+    <button class="trans-btn" onclick="selectTranslation('${latin}', '${trans}', '${word_type}', '${flexion_type}')">
+      ${i+1}. ${trans}
+    </button>
+  `).join('<br>');
+}
+
+async function selectTranslation(latin, german, word_type, flexion_type) {
+  const res = await fetch(`${API_BASE}/vocab/`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      latin_word: latin,
+      german_translation: german,
+      word_type: word_type,
+      flexion_type: flexion_type
+    })
+  });
+
+  document.getElementById('translationOptions').style.display = 'none';
+  document.getElementById('addVocabForm').style.display = 'block';
+  document.getElementById('addVocabForm').reset();
+  loadVocab();
+}
+
 
 // Start quiz (multiple choice)
 async function startQuizFlow() {
