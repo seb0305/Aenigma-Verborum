@@ -41,32 +41,93 @@ function showSection(name) {
 }
 
 // Load vocab table
+let currentSortCol = null;
+let currentSortDir = 'asc';  // Global sort state
+
 async function loadVocab() {
   const res = await fetch(`${API_BASE}/vocab/`);
   const data = await res.json();
+  renderVocabTable(data);
+  attachSortListeners();  // Wires clicks
+  attachTypeFilters();
+}
+
+function attachTypeFilters() {
+  document.querySelectorAll('.type-radio').forEach(radio => {
+    radio.onchange = filterByType;
+  });
+}
+
+function filterByType() {
+  const selectedType = document.querySelector('input[name="typeFilter"]:checked').value;
+
+  document.querySelectorAll('#vocabTable tbody tr').forEach(row => {
+    const typeCell = row.cells[2].textContent.toLowerCase();  // Type column
+    if (selectedType === 'all' || typeCell === selectedType) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+}
+
+// Call in loadVocab(): attachTypeFilters();
+
+
+function renderVocabTable(data) {
+  // Apply sort
+  data.sort((a, b) => {
+    let aVal = a[currentSortCol] ?? '';
+    let bVal = b[currentSortCol] ?? '';
+    if (currentSortCol === 'accuracy_percent') {
+      aVal = parseFloat(aVal);
+      bVal = parseFloat(bVal);
+    }
+    if (aVal < bVal) return currentSortDir === 'asc' ? -1 : 1;
+    if (aVal > bVal) return currentSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
   const tbody = document.querySelector("#vocabTable tbody");
-  tbody.innerHTML = "";
-  data.forEach(row => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
+  tbody.innerHTML = data.map(row => `
+    <tr>
       <td>${row.latin_word}</td>
       <td>${row.german_translation}</td>
+      <td>${row.word_type}</td>
       <td>${row.accuracy_percent.toFixed(1)}%</td>
       <td>${row.has_bronze_card ? "🟤" : ""}</td>
       <td>
         <button class="small-btn" data-action="edit" data-id="${row.id}">Edit</button>
         <button class="small-btn" data-action="delete" data-id="${row.id}">Delete</button>
       </td>
-    `;
-    tbody.appendChild(tr);
-  });
+    </tr>
+  `).join('');
 
-  // attach click events for edit/delete
-  tbody.querySelectorAll("button[data-action='edit']").forEach(btn => {
+  // Re-attach buttons
+  tbody.querySelectorAll('button[data-action="edit"]').forEach(btn => {
     btn.onclick = () => editVocab(btn.dataset.id);
   });
-  tbody.querySelectorAll("button[data-action='delete']").forEach(btn => {
+  tbody.querySelectorAll('button[data-action="delete"]').forEach(btn => {
     btn.onclick = () => deleteVocab(btn.dataset.id);
+  });
+}
+
+function attachSortListeners() {
+  document.querySelectorAll('.sortable').forEach(th => {
+    th.onclick = () => {
+      const col = th.dataset.col;
+      if (currentSortCol === col) {
+        currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSortCol = col;
+        currentSortDir = 'asc';
+      }
+      // Update visuals
+      document.querySelectorAll('.sortable').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+      th.classList.add(`sort-${currentSortDir}`);
+      // Refresh sorted
+      loadVocab();
+    };
   });
 }
 
