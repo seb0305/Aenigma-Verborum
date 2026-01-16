@@ -61,6 +61,7 @@ function attachTypeFilters() {
   document.querySelectorAll(".type-radio").forEach(radio => {
     radio.onchange = filterByType;
   });
+  filterByType();  // Initial "All"
 }
 
 function filterByType() {
