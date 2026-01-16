@@ -16,18 +16,26 @@
 
   <section id="vocabSection" style="display:none;">
     <h2>Vocab Book</h2>
-
-
-    <form id="addVocabForm">
-      <input name="latin" placeholder="Latin" required>
-      <input name="german" placeholder="German (optional)">
-      <button type="submit">Add</button>
-    </form>
-    <div id="translationOptions" style="display:none; margin-top:1rem;">
-  <h4>Pick German meaning:</h4>
-  <div id="transButtons"></div>
-</div>
-
+    <div class="vocab-controls" style="display: flex; gap: 20px; align-items: end; margin-bottom: 20px;">
+    <!-- Add Form (links) -->
+      <form id="addVocabForm">
+        <input name="latin" placeholder="Latin" required>
+        <input name="german" placeholder="German (optional)">
+        <button type="submit">Add</button>
+      </form>
+      <div id="translationOptions" style="display:none; margin-top:1rem;">
+        <h4>Pick German meaning:</h4>
+        <div id="transButtons"></div>
+      </div>
+        <!-- Type Filter (rechts, horizontal) -->
+      <div class="filter-sidebar" style="display: flex; gap: 10px; padding: 10px; border-radius: 8px;">
+        <h3>Type Filter</h3>
+        <label><input type="radio" name="typeFilter" value="all" class="type-radio" checked> All</label><br>
+        <label><input type="radio" name="typeFilter" value="nomen" class="type-radio"> Nomen</label><br>
+        <label><input type="radio" name="typeFilter" value="verb" class="type-radio"> Verb</label><br>
+        <label><input type="radio" name="typeFilter" value="adjektiv" class="type-radio"> Adjektiv</label>
+      </div>
+      </div>
 <table id="vocabTable">
   <thead>
     <tr>
@@ -41,13 +49,7 @@
   </thead>
   <tbody></tbody>
 </table>
-<div class="filter-sidebar">
-  <h3>Type Filter</h3>
-  <label><input type="radio" name="typeFilter" value="all" class="type-radio" checked> All</label><br>
-  <label><input type="radio" name="typeFilter" value="nomen" class="type-radio"> Nomen</label><br>
-  <label><input type="radio" name="typeFilter" value="verb" class="type-radio"> Verb</label><br>
-  <label><input type="radio" name="typeFilter" value="adjektiv" class="type-radio"> Adjektiv</label>
-</div>
+
 
   </section>
 

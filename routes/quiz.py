@@ -4,7 +4,7 @@ import re
 import random
 import logging
 from flask import Blueprint, request, jsonify, current_app
-from datetime import datetime
+import time
 from sqlalchemy import func
 
 import frag_caesar_crawl4ai
@@ -15,7 +15,7 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 
 class WrongOptions(BaseModel):
     options: list[str]
@@ -122,17 +122,32 @@ def next_questions():
     max_wrong_responses = 3  # allow 3 "bad" attempts
     attempts = 0
 
+    start_time = time.perf_counter()  # Speed
+
     while attempts < max_wrong_responses:
         attempts += 1
         try:
             resp = client.chat.completions.create(
                 model=OPENAI_MODEL,
-                # model=GEMINI_MODEL,
+                #model=GEMINI_MODEL,
                 messages=messages,
                 max_tokens=120,
             )
+
+            # TIME + TOKENS!
+            ai_duration = (time.perf_counter() - start_time) * 1000  # ms
+
+            prompt_tokens = resp.usage.prompt_tokens
+            completion_tokens = resp.usage.completion_tokens
+            total_tokens = resp.usage.total_tokens
+
             content = resp.choices[0].message.content.strip()
             current_app.logger.info("AI content for %s (attempt %d): %s", latin_word, attempts, content)
+            current_app.logger.info(
+                f"'{latin_word}' → {ai_duration:.0f}ms | "
+                f"T: {total_tokens} (P:{prompt_tokens}/C:{completion_tokens}) | "
+                f"Response: {content[:50]}..."
+            )
             wrong_options_raw = json.loads(content)
             if not isinstance(wrong_options_raw, list):
                 raise ValueError("AI response is not a JSON list")

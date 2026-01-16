@@ -363,3 +363,35 @@ input:focus {
   font-size: 1.1em !important;   /* Readable text */
 }
 
+.vocab-controls {
+  display: flex;
+  justify-content: space-between;  /* Form links, Rest rechts */
+  align-items: flex-end;
+  position: relative;
+}
+
+.filter-sidebar {
+  display: flex;
+  margin-left: auto !important;  /* Schiebt Box maximal rechts */
+  margin-right: 0 !important;
+  gap: 8px;  /* Enger Abstand */
+  background: #1e1b4b !important;  /* Dunkleres Indigo-Blau */
+  color: white;  /* Kontrast-Text */
+  padding: 14px 24px !important;  /* Extra breit */
+  border-radius: 10px;
+  min-width: 360px;  /* "Adjectives" + Gap passt locker */
+  box-shadow: 0 4px 12px rgba(30,27,75,0.3);  /* Subtiler Glow */
+  flex-shrink: 0;
+}
+
+.filter-sidebar label {
+  margin: 0;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.filter-sidebar input[type="radio"]:checked + span {
+  text-decoration: underline;
+}
