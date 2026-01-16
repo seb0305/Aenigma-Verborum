@@ -29,6 +29,8 @@ class QuizRound(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     started_at = db.Column(db.DateTime, default=datetime.utcnow)
     finished_at = db.Column(db.DateTime)
+    random_length = db.Column(db.Integer)  # Neu: 3-7
+    asked_count = db.Column(db.Integer, default=0)  # Track gefragte
 
 class QuizAnswer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
