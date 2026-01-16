@@ -1,12 +1,13 @@
 from flask import Blueprint, jsonify
+from flask_login import current_user
 from extensions import db
 from models import UserCard, Card, VocabEntry
 
 cards_bp = Blueprint("cards", __name__)
 
 def get_current_user_id():
-    # TODO: implement user management
-    return 1
+    """Fallback to demo user ID=1 if not logged in"""
+    return getattr(current_user, 'id', 1)
 
 # returns each card for current user
 @cards_bp.get("/")
