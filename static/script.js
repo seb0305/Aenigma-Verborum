@@ -495,7 +495,9 @@ async function loadNextNounsNoun() {
   currentNounData = data;
   document.getElementById("nounCard").textContent = data.noun;
   document.getElementById("nounsCounter").textContent = `${++nounsCount}/3`;  // ✅ Increments 1→2→3
-  document.getElementById("nounsFeedback").textContent = "Drag to declension!";
+  //document.getElementById("nounsFeedback").textContent = "Drag to declension!";
+  document.getElementById("nounsFeedback").textContent =
+    `Drag to declension! (${nounsCount}/3 nouns)`;
   resetNounCategories();
   document.getElementById("btnNextNoun").style.display = "none";
 }
