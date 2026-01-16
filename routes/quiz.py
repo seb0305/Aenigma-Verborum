@@ -4,6 +4,7 @@ import re
 import random
 import logging
 from flask import Blueprint, request, jsonify, current_app
+from flask_login import current_user
 import time
 from datetime import datetime
 from sqlalchemy import func, select
@@ -56,8 +57,8 @@ def build_true_meanings_set_from_frag_caesar_and_db(correct: str, latin_word: st
 quiz_bp = Blueprint("quiz", __name__)
 
 def get_current_user_id():
-    """Hardcoded user ID for demo (replace with auth)."""
-    return 1
+    """Fallback to demo user ID=1 if not logged in"""
+    return getattr(current_user, 'id', 1)
 
 @quiz_bp.post("/start")
 def start_quiz():

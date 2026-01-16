@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
+from flask_login import current_user
 from extensions import db
 from models import VocabEntry
 import json
@@ -8,8 +9,8 @@ from sqlalchemy import or_
 vocab_bp = Blueprint("vocab", __name__)
 
 def get_current_user_id():
-    # TODO: replace with real auth later
-    return 1
+    """Fallback to demo user ID=1 if not logged in"""
+    return getattr(current_user, 'id', 1)
 
 # read my vocab entries
 @vocab_bp.get("/")

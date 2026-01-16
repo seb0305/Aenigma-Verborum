@@ -2,6 +2,8 @@ console.log("script.js loaded");
 
 const API_BASE = "http://localhost:5000/api";
 
+let currentUserId = null;
+let currentUsername = 'Guest (Demo)';
 let quizRoundId = null;
 let mcVerbCount = 0;
 let sortingVerbCount = 0;
@@ -14,37 +16,235 @@ let mcTargetLength = 0;
 let sortingTargetLength = 0;
 let nounsTargetLength = 0;
 
-// Sections
-const vocabSection   = document.getElementById("vocabSection");
-const quizSection    = document.getElementById("quizSection");
-const cardsSection   = document.getElementById("cardsSection");
-const sortingSection = document.getElementById("sortingSection");
-const nounsSection   = document.getElementById("nounsSection");
+async function checkAuth() {
+  try {
+    const res = await fetch(`${API_BASE}/auth/status`);
+    const data = await res.json();
+    if (data.success && data.user_id) {
+      currentUserId = data.user_id;
+      currentUsername = data.username;
+      const statusEl = document.getElementById('userStatus');
+      statusEl.innerHTML = `👋 ${data.username} <button onclick="logout()" style="margin-left:10px;font-size:12px;padding:2px 8px;background:#dc3545;color:white;border:none;border-radius:3px;cursor:pointer;">Logout</button>`;
+      statusEl.className = 'logged-in';
+    }
+  } catch(e) {
+    console.log('No auth endpoint or guest mode OK');
+  }
+}
 
-// Navigation wiring
-document.getElementById("btnHomeVocab").onclick = () => {
-  showSection("vocab");
+function addVocabFormSubmit(e) {
+  e.preventDefault();
+  // Inline your form logic here or call existing handler
+  document.getElementById("addVocabForm").dispatchEvent(new Event('submit'));
+}
+
+
+// 🔥 DOM-Elemente werden in DOMContentLoaded initialisiert
+let vocabSection, quizSection, cardsSection, sortingSection, nounsSection;
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM ready – Aenigma Verborum initialisiert');
+
+    // 🔥 ALLE Elemente jetzt holen (garantiert existent)
+    vocabSection = document.getElementById("vocabSection");
+    quizSection = document.getElementById("quizSection");
+    cardsSection = document.getElementById("cardsSection");
+    sortingSection = document.getElementById("sortingSection");
+    nounsSection = document.getElementById("nounsSection");
+
+    // 🔥 Event-Handler Setup
+    setupAuthHandlers();
+    setupNavigationHandlers();
+    setupDragDropHandlers();
+    setupVocabHandlers();
+
+    // 🔥 Initial Load
+    checkAuth().then(() => {
+        console.log("Auth complete → Vocab laden...");
+        loadVocab();
+        showSection("vocab");
+    }).catch(err => {
+        console.error("Auth failed:", err);
+        loadVocab();
+        showSection("vocab");
+    });
+});
+
+function setupAuthHandlers() {
+    document.getElementById('toggleAuth').onclick = toggleAuthMode;
+    document.getElementById('authModal').onclick = closeModalOnOutsideClick;
+    document.getElementById('loginBtn').onclick = () => {
+        document.getElementById('authModal').style.display = 'block';
+    };
+    document.getElementById('authSubmit').onclick = handleAuthSubmit;
+}
+
+async function handleAuthSubmit() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const title = document.getElementById('authTitle').textContent.trim();
+  const isLogin = title === 'Login';
+
+  if (username.length < 3 || password.length < 6) {
+    return alert(`Min lengths: username 3, password 6`);
+  }
+
+  try {
+    const endpoint = isLogin ? 'login' : 'register';
+    const res = await fetch(`${API_BASE}/auth/${endpoint}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username, password})
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      currentUserId = data.user_id;
+      currentUsername = data.username;
+
+      // ✅ LOGGED-IN ONLY: Green status + logout button
+      const statusEl = document.getElementById('userStatus');
+      statusEl.innerHTML = `👋 ${data.username} <button onclick="logout()" style="margin-left:10px;font-size:12px;padding:2px 8px;background:#dc3545;color:white;border:none;border-radius:3px;cursor:pointer;">Logout</button>`;
+      statusEl.className = 'logged-in';
+
+      document.getElementById('authModal').style.display = 'none';
+      document.getElementById('username').value = '';
+      document.getElementById('password').value = '';
+
+      showSection('vocab');
+      loadVocab();
+      console.log(`${endpoint} success → user ${data.username}`);
+    } else {
+      alert(data.message || `${endpoint} failed`);
+    }
+  } catch (err) {
+    console.error('Auth error:', err);
+    alert('Network/Server error');
+  }
+}
+
+
+async function logout() {
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {method: 'POST'});
+  } catch(e) { console.log('Logout ok'); }  // Ignore errors
+
+  currentUserId = null;
+  currentUsername = 'Guest (Demo)';
+  const statusEl = document.getElementById('userStatus');
+  statusEl.innerHTML = 'Guest (Demo)';  // Clear button
+  statusEl.className = 'guest';
+
+  showSection('vocab');
   loadVocab();
-};
-document.getElementById("btnHomeQuiz").onclick = () => startQuizFlow();
-document.getElementById("btnHomeSorting").onclick = () => {
-  showSection("sorting");
-  startSortingQuiz();
-};
-document.getElementById("btnHomeNounSorting").onclick = () => {
-  showSection("nouns");
-  startNounsQuiz();
-};
-document.getElementById("btnHomeCards").onclick = () => loadCards();
+}
+
+
+function setupNavigationHandlers() {
+    const handlers = {
+        btnHomeVocab: () => { showSection("vocab"); loadVocab(); },
+        btnHomeQuiz: startQuizFlow,
+        btnHomeSorting: () => { showSection("sorting"); startSortingQuiz(); },
+        btnHomeNounSorting: () => { showSection("nouns"); startNounsQuiz(); },
+        btnHomeCards: loadCards,
+        btnNextQuestion: nextMCQuestion,
+        btnNextVerb: nextSortingVerb,
+        btnNextNoun: nextNounsNoun
+    };
+
+    Object.entries(handlers).forEach(([id, handler]) => {
+        const el = document.getElementById(id);
+        if (el) {
+            if (id.startsWith('btnNext')) {
+                el.onclick = () => { el.style.display = 'none'; handler(); };
+            } else {
+                el.onclick = handler;
+            }
+            console.log(`✅ Attached handler to #${id}`);
+        } else {
+            console.warn(`❌ Element #${id} not found`);
+        }
+    });
+}
+
+
+function setupDragDropHandlers() {
+    // Verb sorting
+    const verbCard = document.getElementById("verbCard");
+    if (verbCard) {
+        verbCard.addEventListener("dragstart", dragStartHandler);
+        console.log("✅ Verb drag attached");
+    }
+
+    document.querySelectorAll("#sortingQuizArea .category-box").forEach(box => {
+        box.addEventListener("dragover", dragOverHandler);
+        box.addEventListener("drop", handleVerbDrop);
+        console.log("✅ Verb drop attached to", box.dataset.category);
+    });
+
+    // Noun sorting
+    const nounCard = document.getElementById("nounCard");
+    if (nounCard) {
+        nounCard.addEventListener("dragstart", dragStartHandler);
+        console.log("✅ Noun drag attached");
+    }
+
+    document.querySelectorAll("#nounsQuizArea .category-box").forEach(box => {
+        box.addEventListener("dragover", dragOverHandler);
+        box.addEventListener("drop", handleNounDrop);
+        console.log("✅ Noun drop attached to", box.dataset.category);
+    });
+}
+
+
+function setupVocabHandlers() {
+    attachTypeFilters();  // Wird bei loadVocab() erweitert
+}
+
+function toggleAuthMode() {
+    const title = document.getElementById('authTitle');
+    title.textContent = title.textContent === 'Login' ? 'Register' : 'Login';
+}
+
+function closeModalOnOutsideClick(e) {
+    if (e.target.id === 'authModal') {
+        e.target.style.display = 'none';
+    }
+}
+
+function dragStartHandler(e) {
+    e.dataTransfer.setData("text/plain", "");
+}
+
+function dragOverHandler(e) {
+    e.preventDefault();
+}
+
+function nextMCQuestion() {
+    document.getElementById("btnNextQuestion").style.display = "none";
+    loadNextMCQuestion();
+}
+
+function nextSortingVerb() {
+    document.getElementById("btnNextVerb").style.display = "none";
+    loadNextSortingVerb();
+}
+
+function nextNounsNoun() {
+    document.getElementById("btnNextNoun").style.display = "none";
+    resetNounCategories();
+    loadNextNounsNoun();
+}
+
 
 // Show/hide sections
 function showSection(name) {
-  console.log("showSection", name);
-  vocabSection.style.display   = name === "vocab"   ? "block" : "none";
-  quizSection.style.display    = name === "quiz"    ? "block" : "none";
-  cardsSection.style.display   = name === "cards"   ? "block" : "none";
-  sortingSection.style.display = name === "sorting" ? "block" : "none";
-  nounsSection.style.display   = name === "nouns"   ? "block" : "none";
+    console.log("showSection", name);
+    vocabSection.style.display = name === "vocab" ? "block" : "none";
+    quizSection.style.display = name === "quiz" ? "block" : "none";
+    cardsSection.style.display = name === "cards" ? "block" : "none";
+    sortingSection.style.display = name === "sorting" ? "block" : "none";
+    nounsSection.style.display = name === "nouns" ? "block" : "none";
 }
 
 /* -------------------- Vocab Book -------------------- */
@@ -53,7 +253,7 @@ let currentSortCol = null;
 let currentSortDir = "asc";
 
 async function loadVocab() {
-  const res  = await fetch(`${API_BASE}/vocab/`);
+  const res = await fetch(`${API_BASE}/vocab/`);
   const data = await res.json();
   renderVocabTable(data);
   attachSortListeners();
@@ -72,7 +272,7 @@ function filterByType() {
   document.querySelectorAll("#vocabTable tbody tr").forEach(row => {
     const typeCell = row.cells[2].textContent.toLowerCase();
     row.style.display =
-      selectedType === "all" || typeCell === selectedType ? "" : "none";
+        selectedType === "all" || typeCell === selectedType ? "" : "none";
   });
 }
 
@@ -91,8 +291,8 @@ function renderVocabTable(data) {
 
   const tbody = document.querySelector("#vocabTable tbody");
   tbody.innerHTML = data
-    .map(
-      row => `
+      .map(
+          row => `
       <tr>
         <td>${row.latin_word}</td>
         <td>${row.german_translation}</td>
@@ -105,8 +305,8 @@ function renderVocabTable(data) {
         </td>
       </tr>
     `
-    )
-    .join("");
+      )
+      .join("");
 
   tbody.querySelectorAll('button[data-action="edit"]').forEach(btn => {
     btn.onclick = () => editVocab(btn.dataset.id);
@@ -127,8 +327,8 @@ function attachSortListeners() {
         currentSortDir = "asc";
       }
       document
-        .querySelectorAll(".sortable")
-        .forEach(h => h.classList.remove("sort-asc", "sort-desc"));
+          .querySelectorAll(".sortable")
+          .forEach(h => h.classList.remove("sort-asc", "sort-desc"));
       th.classList.add(`sort-${currentSortDir}`);
       loadVocab();
     };
@@ -137,15 +337,15 @@ function attachSortListeners() {
 
 async function editVocab(id) {
   const currentRow = Array.from(
-    document.querySelectorAll("#vocabTable tbody tr")
+      document.querySelectorAll("#vocabTable tbody tr")
   ).find(tr => tr.querySelector("button[data-id='" + id + "']"));
 
   if (!currentRow) return;
 
-  const latinCell  = currentRow.children[0];
+  const latinCell = currentRow.children[0];
   const germanCell = currentRow.children[1];
 
-  const currentLatin  = latinCell.textContent;
+  const currentLatin = latinCell.textContent;
   const currentGerman = germanCell.textContent;
 
   const newLatin = prompt("Edit Latin word:", currentLatin);
@@ -156,7 +356,7 @@ async function editVocab(id) {
 
   const res = await fetch(`${API_BASE}/vocab/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
       latin_word: newLatin,
       german_translation: newGerman
@@ -174,7 +374,7 @@ async function editVocab(id) {
 async function deleteVocab(id) {
   if (!confirm("Really delete this vocab entry?")) return;
 
-  const res = await fetch(`${API_BASE}/vocab/${id}`, { method: "DELETE" });
+  const res = await fetch(`${API_BASE}/vocab/${id}`, {method: "DELETE"});
 
   if (!res.ok) {
     alert("Error deleting vocab entry.");
@@ -187,26 +387,26 @@ async function deleteVocab(id) {
 // Add vocab form
 document.getElementById("addVocabForm").onsubmit = async e => {
   e.preventDefault();
-  const latin  = e.target.latin.value.trim();
+  const latin = e.target.latin.value.trim();
   const german = e.target.german.value.trim();
   if (!latin) return alert("Latin required");
 
-  const body = { latin_word: latin };
+  const body = {latin_word: latin};
   if (german) body.german_translation = german;
 
-  const res  = await fetch(`${API_BASE}/vocab/`, {
+  const res = await fetch(`${API_BASE}/vocab/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type": "application/json"},
     body: JSON.stringify(body)
   });
   const data = await res.json();
 
   if (data.translations && data.translations.length) {
     showTranslationButtons(
-      data.latin_word,
-      data.translations,
-      data.word_type,
-      data.flexion_type
+        data.latin_word,
+        data.translations,
+        data.word_type,
+        data.flexion_type
     );
   } else {
     e.target.reset();
@@ -220,21 +420,21 @@ function showTranslationButtons(latin, translations, word_type, flexion_type) {
 
   const buttonsDiv = document.getElementById("transButtons");
   buttonsDiv.innerHTML = translations
-    .map(
-      (trans, i) => `
+      .map(
+          (trans, i) => `
     <button class="trans-btn"
       onclick="selectTranslation('${latin}', '${trans}', '${word_type}', '${flexion_type}')">
       ${i + 1}. ${trans}
     </button>
   `
-    )
-    .join("<br>");
+      )
+      .join("<br>");
 }
 
 async function selectTranslation(latin, german, word_type, flexion_type) {
   await fetch(`${API_BASE}/vocab/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
       latin_word: latin,
       german_translation: german,
@@ -254,22 +454,22 @@ async function selectTranslation(latin, german, word_type, flexion_type) {
 
 async function startQuizFlow() {
   console.log("startQuizFlow called");
-  const startRes  = await fetch(`${API_BASE}/quiz/start`, { method: "POST" });
+  const startRes = await fetch(`${API_BASE}/quiz/start`, {method: "POST"});
   const startData = await startRes.json();
-  quizRoundId     = startData.quiz_round_id;
+  quizRoundId = startData.quiz_round_id;
   mcTargetLength = startData.target_length;
-  mcVerbCount     = 0;
+  mcVerbCount = 0;
   document.getElementById("mcCounter").textContent = `0/${mcTargetLength}`;
   showSection("quiz");
   await loadNextMCQuestion();
 }
 
 function showCurrentQuestionStandalone(q) {
-  const wordDiv     = document.getElementById("quizWord");
-  const optionsDiv  = document.getElementById("quizOptions");
+  const wordDiv = document.getElementById("quizWord");
+  const optionsDiv = document.getElementById("quizOptions");
   const feedbackDiv = document.getElementById("quizFeedback");
 
-  wordDiv.textContent     = q.latin_word;
+  wordDiv.textContent = q.latin_word;
   feedbackDiv.textContent = "";
 
   optionsDiv.style.cssText = `
@@ -287,10 +487,10 @@ function showCurrentQuestionStandalone(q) {
   q.options.forEach(opt => {
     const btn = document.createElement("button");
     btn.textContent = opt;
-    btn.className   = "quiz-option-btn";
-    btn.onclick     = () => submitChoice(opt, q);
+    btn.className = "quiz-option-btn";
+    btn.onclick = () => submitChoice(opt, q);
     btn.style.margin = "0 !important";
-    btn.style.flex   = "0 0 auto";
+    btn.style.flex = "0 0 auto";
     optionsDiv.appendChild(btn);
   });
 }
@@ -298,38 +498,38 @@ function showCurrentQuestionStandalone(q) {
 async function loadNextMCQuestion() {
   if (mcVerbCount >= mcTargetLength) {
     document.getElementById("quizFeedback").textContent =
-      "Multiple choice quiz complete!";
+        "Multiple choice quiz complete!";
     alert("Multiple choice quiz complete!");
     await fetch(`${API_BASE}/quiz/finish`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quiz_round_id: quizRoundId })
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({quiz_round_id: quizRoundId})
     });
     loadVocab();
     showSection("vocab");
     return;
   }
 
-  const qRes         = await fetch(`${API_BASE}/quiz/next?quizroundid=${quizRoundId}`);
+  const qRes = await fetch(`${API_BASE}/quiz/next?quizroundid=${quizRoundId}`);
   const response = await qRes.json();
-if (response.error) {
-  document.getElementById("quizFeedback").textContent = response.error;
-  return;
-}
-const q = response.question;
-showCurrentQuestionStandalone(q);
-document.getElementById("quizFeedback").textContent =
-  `Choose right answer! (${mcVerbCount + 1}/${mcTargetLength})`;  // ✅ Closed + mcTargetLength
-mcVerbCount++;
-document.getElementById("mcCounter").textContent =
-  `${mcVerbCount}/${mcTargetLength}`;  // ✅ Closed + mcTargetLength
-document.getElementById("btnNextQuestion").style.display = "none";
+  if (response.error) {
+    document.getElementById("quizFeedback").textContent = response.error;
+    return;
+  }
+  const q = response.question;
+  showCurrentQuestionStandalone(q);
+  document.getElementById("quizFeedback").textContent =
+      `Choose right answer! (${mcVerbCount + 1}/${mcTargetLength})`;  // ✅ Closed + mcTargetLength
+  mcVerbCount++;
+  document.getElementById("mcCounter").textContent =
+      `${mcVerbCount}/${mcTargetLength}`;  // ✅ Closed + mcTargetLength
+  document.getElementById("btnNextQuestion").style.display = "none";
 }
 
 async function submitChoice(selectedOption, q) {
-  const res  = await fetch(`${API_BASE}/quiz/answer`, {
+  const res = await fetch(`${API_BASE}/quiz/answer`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
       quiz_round_id: quizRoundId,
       vocab_entry_id: q.id,
@@ -360,9 +560,9 @@ document.getElementById("btnNextQuestion").onclick = async () => {
 /* -------------------- Cards -------------------- */
 
 async function loadCards() {
-  const res   = await fetch(`${API_BASE}/cards/`);
+  const res = await fetch(`${API_BASE}/cards/`);
   const cards = await res.json();
-  const grid  = document.getElementById("cardsGrid");
+  const grid = document.getElementById("cardsGrid");
   grid.innerHTML = "";
   cards.forEach(c => {
     const div = document.createElement("div");
@@ -380,12 +580,14 @@ async function loadCards() {
 /* -------------------- Verb Sorting Quiz -------------------- */
 
 async function startSortingQuiz() {
-  const res = await fetch(`${API_BASE}/quiz/verbs/start`, { method: "POST" });
+  const res = await fetch(`${API_BASE}/quiz/verbs/start`, {method: "POST"});
   const startData = await res.json();
   sortingRoundId = startData.quiz_round_id;  // ✅ Consistent snake_case
   sortingTargetLength = startData.target_length;  // ✅ Local var
   sortingVerbCount = 0;
   document.getElementById("sortingCounter").textContent = `0/${sortingTargetLength}`;
+  showSection("sorting");
+  setupDragDropHandlers();
   await loadNextSortingVerb();
 }
 
@@ -396,8 +598,8 @@ async function loadNextSortingVerb() {
     alert(`Sorting complete! (${sortingVerbCount}/${sortingTargetLength})`);
     await fetch(`${API_BASE}/quiz/finish`, {  // ✅ Finish API
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quiz_round_id: sortingRoundId })
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({quiz_round_id: sortingRoundId})
     });
     await loadVocab();
     showSection("vocab");
@@ -416,7 +618,7 @@ async function loadNextSortingVerb() {
   document.getElementById("verbCard").textContent = data.verb;
   document.getElementById("sortingCounter").textContent = `${sortingVerbCount}/${sortingTargetLength}`;
   document.getElementById("sortingFeedback").textContent =
-    `Drag to category! (${sortingVerbCount}/${sortingTargetLength})`;
+      `Drag to category! (${sortingVerbCount}/${sortingTargetLength})`;
   resetVerbCategories();
   document.getElementById("btnNextVerb").style.display = "none";
 }
@@ -431,12 +633,12 @@ function resetVerbCategories() {
 
 async function handleVerbDrop(e) {
   e.preventDefault();
-  const box      = e.currentTarget;
+  const box = e.currentTarget;
   const category = box.dataset.category;
 
-  const res    = await fetch(`${API_BASE}/quiz/verbs/answer`, {
+  const res = await fetch(`${API_BASE}/quiz/verbs/answer`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
       quizroundid: sortingRoundId,
       verb: currentVerbData.verb,
@@ -448,7 +650,7 @@ async function handleVerbDrop(e) {
   box.classList.add(result.correct ? "correct" : "wrong");
   box.innerHTML = `${box.dataset.category} (${result.message})`;
   document.getElementById("sortingFeedback").innerHTML =
-    `<strong>${result.message}</strong> ${result.score.toFixed(1)}%`;
+      `<strong>${result.message}</strong> ${result.score.toFixed(1)}%`;
   document.getElementById("btnNextVerb").style.display = "inline-block";
 }
 
@@ -457,11 +659,11 @@ document.getElementById("verbCard").addEventListener("dragstart", e => {
 });
 
 document
-  .querySelectorAll("#sortingQuizArea .category-box")
-  .forEach(box => {
-    box.addEventListener("dragover", e => e.preventDefault());
-    box.addEventListener("drop", handleVerbDrop);
-  });
+    .querySelectorAll("#sortingQuizArea .category-box")
+    .forEach(box => {
+      box.addEventListener("dragover", e => e.preventDefault());
+      box.addEventListener("drop", handleVerbDrop);
+    });
 
 document.getElementById("btnNextVerb").onclick = () => {
   document.getElementById("btnNextVerb").style.display = "none";
@@ -471,12 +673,14 @@ document.getElementById("btnNextVerb").onclick = () => {
 /* -------------------- Noun Sorting Quiz -------------------- */
 
 async function startNounsQuiz() {
-  const res = await fetch(`${API_BASE}/quiz/nouns/start`, { method: "POST" });
+  const res = await fetch(`${API_BASE}/quiz/nouns/start`, {method: "POST"});
   const startData = await res.json();
   nounsRoundId = startData.quiz_round_id;  // ✅ snake_case
   nounsTargetLength = startData.target_length;
   nounsCount = 0;
   document.getElementById("nounsCounter").textContent = `0/${nounsTargetLength}`;
+  showSection("nouns");
+    setupDragDropHandlers();
   await loadNextNounsNoun();  // ✅ Pass
 }
 
@@ -494,8 +698,8 @@ async function loadNextNounsNoun() {
     alert(`Noun quiz complete! (${nounsCount}/${nounsTargetLength})`);
     await fetch(`${API_BASE}/quiz/finish`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quiz_round_id: nounsRoundId })
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({quiz_round_id: nounsRoundId})
     });
     loadVocab();
     showSection("vocab");
@@ -514,7 +718,7 @@ async function loadNextNounsNoun() {
   nounsCount++;  // ✅ Increment AFTER backend fetch (post-answer)
   document.getElementById("nounsCounter").textContent = `${nounsCount}/${nounsTargetLength}`;
   document.getElementById("nounsFeedback").textContent =
-    `Drag to declension! (${nounsCount}/${nounsTargetLength})`;
+      `Drag to declension! (${nounsCount}/${nounsTargetLength})`;
   resetNounCategories();
   document.getElementById("btnNextNoun").style.display = "none";
 }
@@ -522,12 +726,12 @@ async function loadNextNounsNoun() {
 
 async function handleNounDrop(e) {
   e.preventDefault();
-  const box      = e.currentTarget;
+  const box = e.currentTarget;
   const category = box.dataset.category;
 
-  const res    = await fetch(`${API_BASE}/quiz/nouns/answer`, {
+  const res = await fetch(`${API_BASE}/quiz/nouns/answer`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
       quizroundid: nounsRoundId,
       noun: currentNounData.noun,
@@ -539,7 +743,7 @@ async function handleNounDrop(e) {
   box.classList.add(result.correct ? "correct" : "wrong");
   box.innerHTML = result.message;
   document.getElementById("nounsFeedback").innerHTML =
-    `Accuracy: ${result.score.toFixed(1)}`;
+      `Accuracy: ${result.score.toFixed(1)}`;
   document.getElementById("btnNextNoun").style.display = "inline-block";
 }
 
@@ -548,19 +752,14 @@ document.getElementById("nounCard").addEventListener("dragstart", e => {
 });
 
 document
-  .querySelectorAll("#nounsQuizArea .category-box")
-  .forEach(box => {
-    box.addEventListener("dragover", e => e.preventDefault());
-    box.addEventListener("drop", handleNounDrop);
-  });
+    .querySelectorAll("#nounsQuizArea .category-box")
+    .forEach(box => {
+      box.addEventListener("dragover", e => e.preventDefault());
+      box.addEventListener("drop", handleNounDrop);
+    });
 
 document.getElementById("btnNextNoun").onclick = () => {
   document.getElementById("btnNextNoun").style.display = "none";
   resetNounCategories();
   loadNextNounsNoun();
 };
-
-/* -------------------- Initial Load -------------------- */
-
-loadVocab();
-showSection("vocab");

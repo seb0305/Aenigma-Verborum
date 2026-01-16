@@ -5,7 +5,37 @@
   <title>Aenigma prototype</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
+<!-- User Status & Auth Modal -->
+<header id="topBar" style="
+  position: fixed; top: 0; left: 0; right: 0; height: 60px;
+  background: #1e293b; display: flex; align-items: center;
+  padding: 0 20px; justify-content: space-between; z-index: 1000; color: white;
+">
+  <button id="loginBtn" style="background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">🔐 Login</button>
+
+  <h1 style="margin: 0; font-size: 24px;">Aenigma Verborum</h1>
+
+  <div id="userStatus" style="padding: 8px 12px; background: #ef4444; border-radius: 5px;">Guest</div>
+</header>
+
+<!-- Spacer bleibt gleich -->
+<div style="height: 80px;"></div>
+
+<!-- Auth Modal (overlay) -->
+<div id="authModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; display:flex; align-items:center; justify-content:center;">
+  <div style="background:white; padding:30px; border-radius:10px; max-width:400px; width:90%;">
+    <h3 id="authTitle">Login</h3>
+    <input id="username" placeholder="Username (min 3)" style="width:100%; padding:10px; margin:10px 0; border:1px solid #ccc; border-radius:5px;">
+    <input id="password" type="password" placeholder="Password (min 6)" style="width:100%; padding:10px; margin:10px 0; border:1px solid #ccc; border-radius:5px;">
+    <div style="display:flex; gap:10px;">
+      <button id="authSubmit" style="flex:1; padding:10px; background:#3b82f6; color:white; border:none; border-radius:5px; cursor:pointer;">Submit</button>
+      <button id="toggleAuth" style="flex:1; padding:10px; background:#6b7280; color:white; border:none; border-radius:5px; cursor:pointer;">Toggle Mode</button>
+    </div>
+  </div>
+</div>
+
   <h1>Aenigma Prototype</h1>
 
   <button id="btnHomeVocab" class="nav-btn">My Vocab Book</button>
@@ -13,6 +43,9 @@
   <button id="btnHomeSorting" class="nav-btn">Start Verb Sorting Quiz</button>
   <button id="btnHomeNounSorting" class="nav-btn">Start Noun Sorting Quiz</button>
   <button id="btnHomeCards" class="nav-btn">My Cards</button>
+
+
+  <!------------- Vocab section ----------------- -->
 
   <section id="vocabSection" style="display:none;">
     <h2>Vocab Book</h2>
@@ -53,9 +86,9 @@
 
   </section>
 
-<section id="quizSection" class="panel">
+<section id="quizSection" class="panel" style="display:none;">
   <h2>Vocab Multiple Choice Quiz <span id="mcCounter" style="color: violet; font-weight: bold;">–</span></h2>
-  <div id="quizWord" class="quiz-latin"></div></div>
+  <div id="quizWord" class="quiz-latin"></div>
   <div id="quizOptions"></div>
   <div id="quizFeedback"></div>
   <button id="btnNextQuestion" class="next-btn" style="display:none;">Nächstes Wort</button>
