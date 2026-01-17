@@ -5,42 +5,48 @@ import random
 import logging
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import current_user
-import time
 from datetime import datetime
 from sqlalchemy import func, select
 
-import frag_caesar_crawl4ai
+import frag_caesar_bs4
 from extensions import db
 from models import VocabEntry, QuizRound, QuizAnswer, Card, UserCard
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 
+
 class WrongOptions(BaseModel):
-    """Pydantic model for AI-generated wrong options validation."""
+    """Pydantic model for validating AI-generated wrong options."""
     options: list[str]
+
 
 def normalize_german_strict(s: str) -> str:
     """
-    Normalize German text for strict comparison (distractor filtering).
-    Strips, lowercases, normalizes whitespace, removes trailing punctuation.
+    Normalize German text for strict comparison during distractor filtering.
+
+    Strips whitespace, lowercases, normalizes multiple spaces to single space,
+    and removes trailing punctuation.
     """
     s = s.strip().lower()
     s = re.sub(r"\s+", " ", s)
     s = re.sub(r"[;.,!?:]+$", "", s)
     return s
 
+
 def build_true_meanings_set_from_frag_caesar_and_db(correct: str, latin_word: str) -> set[str]:
     """
-    Combine DB translation + FragCaesar meanings into normalized set.
-    Used to filter AI distractors that accidentally match real meanings.
+    Build set of true German meanings from database and FragCaesar API.
+
+    Combines provided correct translation with additional meanings from
+    FragCaesar to filter out real meanings from AI-generated distractors.
     """
-    s: set[str] = set()
+    true_meanings = set()
     if correct:
-        s.add(normalize_german_strict(correct))
+        true_meanings.add(normalize_german_strict(correct))
 
     try:
         extra_meanings = frag_caesar_crawl4ai.get_german_meanings(latin_word) or []
@@ -48,327 +54,498 @@ def build_true_meanings_set_from_frag_caesar_and_db(correct: str, latin_word: st
         current_app.logger.error("FragCaesar error for %s: %s", latin_word, ex)
         extra_meanings = []
 
-    for m in extra_meanings:
-        norm = normalize_german_strict(m)
-        if norm:
-            s.add(norm)
-    return s
+    for meaning in extra_meanings:
+        normalized = normalize_german_strict(meaning)
+        if normalized:
+            true_meanings.add(normalized)
+
+    return true_meanings
+
+
+def get_current_user_id() -> int:
+    """Get current user ID, defaults to demo user ID=1 if not logged in."""
+    return getattr(current_user, 'id', 1)
+
 
 quiz_bp = Blueprint("quiz", __name__)
 
-def get_current_user_id():
-    """Fallback to demo user ID=1 if not logged in"""
-    return getattr(current_user, 'id', 1)
 
 @quiz_bp.post("/start")
 def start_quiz():
     """
-    Start MC quiz round.
-    Generates random_length (3-7), creates QuizRound, returns ID + target for JS counter.
+    Start multiple-choice vocabulary quiz.
+
+    Creates QuizRound with random length (3-7 questions) and returns
+    quiz_round_id and target_length for client-side progress tracking.
     """
     user_id = get_current_user_id()
-    random_length = random.randint(3, 7)  # 🎯 Variable 3-7 questions
-    qr = QuizRound(user_id=user_id, random_length=random_length, asked_count=0)
-    db.session.add(qr)
+    quiz_length = random.randint(3, 7)
+
+    quiz_round = QuizRound(
+        user_id=user_id,
+        random_length=quiz_length,
+        asked_count=0
+    )
+    db.session.add(quiz_round)
     db.session.commit()
-    logger.info(f"MC Quiz started: ID={qr.id}, target={random_length}")
-    return jsonify({'quiz_round_id': qr.id, 'target_length': random_length})
+
+    logger.info(f"MC Quiz started: ID={quiz_round.id}, target={quiz_length}")
+    return jsonify({
+        'quiz_round_id': quiz_round.id,
+        'target_length': quiz_length
+    })
+
 
 @quiz_bp.get("/next")
-def next_questions():
+def next_question():
     """
-    Get next MC question (weak vocab, AI distractors).
-    🚨 Checks asked_count >= random_length → finish early.
-    Increments asked_count on serve (question-first model).
-    Adaptive: fewer vocabs → all asked → finish.
+    Serve next multiple-choice question from weak vocabulary entries.
+
+    Prioritizes entries with accuracy <95% or <100 total answers.
+    Generates AI distractors filtered against real meanings.
+    Increments asked_count when question is served.
     """
     client = current_app.config['client']
     user_id = get_current_user_id()
     quiz_round_id = request.args.get('quiz_round_id') or request.args.get('quizroundid')
 
-    qr = QuizRound.query.get(quiz_round_id)
-    if not qr:
+    quiz_round = QuizRound.query.get(quiz_round_id)
+    if not quiz_round:
         return jsonify({"error": "Invalid quiz_round_id"}), 404
-    if qr.finished_at:
-        return jsonify({"error": f"Quiz finished ({qr.asked_count}/{qr.random_length})"}), 404
-    if qr.asked_count >= qr.random_length:
-        qr.finished_at = datetime.utcnow()
-        db.session.commit()
-        return jsonify({"error": f"Quiz complete! ({qr.asked_count}/{qr.random_length})"}), 404
 
-    # ✅ FIXED: Always create subquery, filter if exists
-    asked_subq = db.session.query(QuizAnswer.vocab_entry_id).filter(
+    if quiz_round.finished_at or quiz_round.asked_count >= quiz_round.random_length:
+        if not quiz_round.finished_at:
+            quiz_round.finished_at = datetime.utcnow()
+            db.session.commit()
+        return jsonify({
+            "error": f"Quiz complete! ({quiz_round.asked_count}/{quiz_round.random_length})"
+        }), 404
+
+    # Exclude already asked vocabulary entries
+    asked_subquery = select(QuizAnswer.vocab_entry_id).filter(
         QuizAnswer.quiz_round_id == quiz_round_id
     ).subquery()
 
-    asked_select = select(QuizAnswer.vocab_entry_id).filter(
-        QuizAnswer.quiz_round_id == quiz_round_id
+    # Query weak vocabulary (low accuracy or few answers)
+    weak_entries = VocabEntry.query.filter(
+        VocabEntry.user_id == user_id,
+        (VocabEntry.accuracy_percent < 95) | (VocabEntry.total_answers < 100),
+        VocabEntry.id.notin_(asked_subquery)
+    ).order_by(func.random())
+
+    vocab_entry = weak_entries.first()
+    if not vocab_entry:
+        quiz_round.finished_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({
+            "error": f"No vocabulary left ({quiz_round.asked_count}/{quiz_round.random_length})"
+        }), 404
+
+    # Generate AI distractors
+    latin_word = vocab_entry.latin_word
+    correct_translation = vocab_entry.german_translation
+    true_meanings = build_true_meanings_set_from_frag_caesar_and_db(
+        correct_translation, latin_word
     )
 
-    weak = VocabEntry.query.filter(
-        VocabEntry.user_id == user_id,
-        (VocabEntry.accuracy_percent < 95) | (VocabEntry.total_answers < 100)
-    ).filter(VocabEntry.id.notin_(asked_select.subquery()))
-
-    entry = weak.order_by(func.random()).first()
-    if not entry:
-        qr.finished_at = datetime.utcnow()
-        db.session.commit()
-        return jsonify({"error": f"No vocabs left ({qr.asked_count}/{qr.random_length})"}), 404
-
-    # AI distractors (unchanged complex logic)
-    latin_word = entry.latin_word
-    correct = entry.german_translation
-    true_meanings_set = build_true_meanings_set_from_frag_caesar_and_db(correct, latin_word)
-
-    system_msg = {
+    # AI prompt for wrong options
+    system_prompt = {
         "role": "system",
         "content": (
-            "You are a helpful assistant for Latin–German vocabulary training. "
+            "You are a helpful assistant for Latin-German vocabulary training. "
             "Always answer ONLY with a JSON array of strings, e.g. "
             "[\"Wort1\",\"Wort2\",\"Wort3\"]. No explanations."
-        ),
+        )
     }
-    base_user_prompt = (
-        f"Latin: {latin_word}\nTrue German: {correct}\n"
-        f"Other meanings: {sorted(true_meanings_set)}\n"
+
+    user_prompt = (
+        f"Latin: {latin_word}\nTrue German: {correct_translation}\n"
+        f"Other meanings: {sorted(true_meanings)}\n"
         "Return EXACTLY 3 wrong plausible translations (JSON array only)."
     )
-    messages = [system_msg, {"role": "user", "content": base_user_prompt}]
 
-    wrong_options_raw: list[str] = []
-    attempts = 0
-    while attempts < 3:  # Max 3 AI retries
-        attempts += 1
+    messages = [system_prompt, {"role": "user", "content": user_prompt}]
+
+    # Generate and validate distractors (max 3 attempts)
+    wrong_options = []
+    for attempt in range(3):
         try:
-            resp = client.chat.completions.create(model=OPENAI_MODEL, messages=messages, max_tokens=120)
-            content = resp.choices[0].message.content.strip()
-            wrong_options_raw = json.loads(content)
-            logger.info(f"AI gen for {latin_word} (attempt {attempts}): {content[:50]}")
+            response = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=messages,
+                max_tokens=120
+            )
+            content = response.choices[0].message.content.strip()
+            wrong_options = json.loads(content)
+            logger.info(f"AI generated distractors for {latin_word} (attempt {attempt + 1}): {content[:50]}")
         except Exception:
-            wrong_options_raw = ["Falsche 1", "Falsche 2", "Falsche 3"]
+            wrong_options = ["Fehler 1", "Fehler 2", "Fehler 3"]
             break
 
-        # Filter real meanings → retry/add feedback if needed
-        filtered = [w.strip() for w in wrong_options_raw if isinstance(w, str)
-                    and normalize_german_strict(w) not in true_meanings_set]
-        if len(filtered) >= 3:
-            wrong_options_raw = filtered
+        # Filter out real meanings
+        filtered_options = [
+            w.strip() for w in wrong_options
+            if isinstance(w, str) and normalize_german_strict(w) not in true_meanings
+        ]
+
+        if len(filtered_options) >= 3:
+            wrong_options = filtered_options
             break
 
-    # Pad/filter to exactly 3 safe distractors
-    wrong_options = [w for w in wrong_options_raw[:3]
-                     if normalize_german_strict(w) not in true_meanings_set][:3]
-    while len(wrong_options) < 3:
-        wrong_options.append("Dummy wrong")
+    # Ensure exactly 3 valid distractors
+    valid_distractors = [
+                            w for w in wrong_options[:3]
+                            if normalize_german_strict(w) not in true_meanings
+                        ][:3]
 
-    options = wrong_options + [correct]
-    random.shuffle(options)
-    correct_index = options.index(correct)
+    while len(valid_distractors) < 3:
+        valid_distractors.append("Platzhalter falsch")
+
+    # Shuffle options
+    all_options = valid_distractors + [correct_translation]
+    random.shuffle(all_options)
+    correct_index = all_options.index(correct_translation)
 
     question = {
-        "id": entry.id,
+        "id": vocab_entry.id,
         "latin_word": latin_word,
-        "options": options,
+        "options": all_options,
         "correct_index": correct_index
     }
 
-    # 📊 Increment counter (question served = asked)
-    qr.asked_count += 1
+    # Increment asked count
+    quiz_round.asked_count += 1
     db.session.commit()
-    logger.info(f"MC Q served: {latin_word} ({qr.asked_count}/{qr.random_length})")
 
+    logger.info(f"MC Question served: {latin_word} ({quiz_round.asked_count}/{quiz_round.random_length})")
     return jsonify({"question": question})
 
 
 @quiz_bp.post("/answer")
-def answer_question():
+def submit_answer():
     """
-    Submit MC answer, update stats/cards.
-    No asked_count change (incremented on /next serve).
+    Process multiple-choice answer submission.
+
+    Updates vocabulary statistics and handles bronze card logic
+    based on accuracy thresholds.
     """
     user_id = get_current_user_id()
     data = request.get_json()
     quiz_round_id = data.get("quiz_round_id")
+
     if not quiz_round_id:
         return jsonify({"error": "Missing quiz_round_id"}), 400
 
-    entry = VocabEntry.query.filter_by(id=data["vocab_entry_id"], user_id=user_id).first_or_404()
-    is_correct = normalize_german_strict(data["selected_option"]) == normalize_german_strict(entry.german_translation)
+    vocab_entry = VocabEntry.query.filter_by(
+        id=data["vocab_entry_id"],
+        user_id=user_id
+    ).first_or_404()
 
-    qa = QuizAnswer(quiz_round_id=quiz_round_id, vocab_entry_id=entry.id, was_correct=is_correct)
-    db.session.add(qa)
+    is_correct = normalize_german_strict(
+        data["selected_option"]
+    ) == normalize_german_strict(vocab_entry.german_translation)
 
-    entry.total_answers += 1
+    # Record answer
+    quiz_answer = QuizAnswer(
+        quiz_round_id=quiz_round_id,
+        vocab_entry_id=vocab_entry.id,
+        was_correct=is_correct
+    )
+    db.session.add(quiz_answer)
+
+    # Update statistics
+    vocab_entry.total_answers += 1
     if is_correct:
-        entry.correct_answers += 1
-    entry.accuracy_percent = (entry.correct_answers / entry.total_answers) * 100
+        vocab_entry.correct_answers += 1
+    vocab_entry.accuracy_percent = (
+            (vocab_entry.correct_answers / vocab_entry.total_answers) * 100
+    )
 
-    # Bronze card logic (unchanged)
+    # Bronze card logic
     card_change = None
     card_id = None
-    bronze = db.session.query(Card, UserCard).join(UserCard).filter(
-        Card.vocab_entry_id == entry.id, Card.rarity == "bronze", UserCard.user_id == user_id
+
+    bronze_card = db.session.query(Card, UserCard).join(UserCard).filter(
+        Card.vocab_entry_id == vocab_entry.id,
+        Card.rarity == "bronze",
+        UserCard.user_id == user_id
     ).first()
 
-    if is_correct and entry.accuracy_percent >= 90 and entry.total_answers >= 1 and not bronze:
-        # Create card
-        card = Card(vocab_entry_id=entry.id, rarity="bronze", title=entry.latin_word,
-                    description=f"Bronze for {entry.latin_word}", image_url="https://placehold.co/240x320?text=Bronze")
+    if (is_correct and vocab_entry.accuracy_percent >= 90 and
+            vocab_entry.total_answers >= 1 and not bronze_card):
+
+        # Create bronze card
+        card = Card(
+            vocab_entry_id=vocab_entry.id,
+            rarity="bronze",
+            title=vocab_entry.latin_word,
+            description=f"Bronze card for {vocab_entry.latin_word}",
+            image_url="https://placehold.co/240x320?text=Bronze"
+        )
         db.session.add(card)
         db.session.flush()
-        db.session.add(UserCard(user_id=user_id, card_id=card.id))
-        entry.has_bronze_card = True
+
+        user_card = UserCard(user_id=user_id, card_id=card.id)
+        db.session.add(user_card)
+        vocab_entry.has_bronze_card = True
         card_change = "created"
         card_id = card.id
-    elif entry.accuracy_percent < 90 and bronze:
-        # Remove card
-        card, user_card = bronze
+
+    elif vocab_entry.accuracy_percent < 90 and bronze_card:
+        # Remove bronze card
+        card, user_card = bronze_card
         db.session.delete(user_card)
-        if not UserCard.query.filter(UserCard.card_id == card.id, UserCard.user_id != user_id).count():
+
+        if not UserCard.query.filter(
+                UserCard.card_id == card.id,
+                UserCard.user_id != user_id
+        ).count():
             db.session.delete(card)
-        entry.has_bronze_card = False
+
+        vocab_entry.has_bronze_card = False
         card_change = "removed"
         card_id = card.id
 
     db.session.commit()
-    return jsonify({"correct": is_correct, "accuracy_percent": entry.accuracy_percent,
-                    "card_change": card_change, "card_id": card_id})
+
+    return jsonify({
+        "correct": is_correct,
+        "accuracy_percent": round(vocab_entry.accuracy_percent, 1),
+        "card_change": card_change,
+        "card_id": card_id
+    })
+
+
+def get_active_quiz_round(user_id: int) -> QuizRound:
+    """Retrieve most recent active quiz round for user."""
+    return QuizRound.query.filter(
+        QuizRound.user_id == user_id,
+        QuizRound.finished_at.is_(None)
+    ).order_by(QuizRound.id.desc()).first()
+
 
 @quiz_bp.route('/verbs/start', methods=['POST'])
-def verbs_start():
-    """Start verb sorting quiz (random 3-7)."""
+def verbs_start_quiz():
+    """Start verb conjugation type sorting quiz."""
     user_id = get_current_user_id()
-    random_length = random.randint(3, 7)
-    qr = QuizRound(user_id=user_id, random_length=random_length, asked_count=0)
-    db.session.add(qr)
+    quiz_length = random.randint(3, 7)
+
+    quiz_round = QuizRound(
+        user_id=user_id,
+        random_length=quiz_length,
+        asked_count=0
+    )
+    db.session.add(quiz_round)
     db.session.commit()
-    return jsonify({'quiz_round_id': qr.id, 'target_length': random_length})
+
+    return jsonify({
+        'quiz_round_id': quiz_round.id,
+        'target_length': quiz_length
+    })
+
 
 @quiz_bp.route('/verbs/next')
-def verbs_next():
+def verbs_next_question():
     """
-    Next verb for sorting.
-    Checks length/no verbs → finish. Increments asked_count.
+    Serve next verb for conjugation type identification.
+
+    Filters for verbs with defined flexion_type, excludes previously asked.
     """
     user_id = get_current_user_id()
-    current_round = QuizRound.query.filter(
-        QuizRound.user_id == user_id, QuizRound.finished_at.is_(None)
-    ).order_by(QuizRound.id.desc()).first()
-    if not current_round:
+    quiz_round = get_active_quiz_round(user_id)
+
+    if not quiz_round:
         return jsonify({"error": "No active verb quiz"}), 404
 
-    if current_round.asked_count >= current_round.random_length:
-        current_round.finished_at = datetime.utcnow()
+    if quiz_round.asked_count >= quiz_round.random_length:
+        quiz_round.finished_at = datetime.utcnow()
         db.session.commit()
-        return jsonify({"error": f"Verb quiz complete! ({current_round.asked_count}/{current_round.random_length})"}), 404
+        return jsonify({
+            "error": f"Verb quiz complete! ({quiz_round.asked_count}/{quiz_round.random_length})"
+        }), 404
 
-    asked_ids = db.session.query(QuizAnswer.vocab_entry_id).filter(
-        QuizAnswer.quiz_round_id == current_round.id).subquery()
+    asked_subquery = db.session.query(QuizAnswer.vocab_entry_id).filter(
+        QuizAnswer.quiz_round_id == quiz_round.id
+    ).subquery()
 
-    verb = VocabEntry.query.filter(
-        VocabEntry.user_id == user_id, VocabEntry.word_type == "Verb",
-        VocabEntry.flexion_type.isnot(None), ~VocabEntry.id.in_(asked_ids)
+    verb_entry = VocabEntry.query.filter(
+        VocabEntry.user_id == user_id,
+        VocabEntry.word_type == "Verb",
+        VocabEntry.flexion_type.isnot(None),
+        ~VocabEntry.id.in_(asked_subquery)
     ).order_by(func.random()).first()
 
-    if not verb:
-        current_round.finished_at = datetime.utcnow()
+    if not verb_entry:
+        quiz_round.finished_at = datetime.utcnow()
         db.session.commit()
-        return jsonify({"error": f"All verbs asked ({current_round.asked_count}/{current_round.random_length})"}), 404
+        return jsonify({
+            "error": f"All verbs asked ({quiz_round.asked_count}/{quiz_round.random_length})"
+        }), 404
 
-    current_round.asked_count += 1
+    quiz_round.asked_count += 1
     db.session.commit()
-    return jsonify({'verb': verb.latin_word, 'correct_category': verb.flexion_type})
+
+    return jsonify({
+        'verb': verb_entry.latin_word,
+        'correct_category': verb_entry.flexion_type
+    })
+
 
 @quiz_bp.route('/verbs/answer', methods=['POST'])
-def verbs_answer():
-    """Submit verb category answer, update stats (no count increment)."""
+def verbs_submit_answer():
+    """Process verb conjugation type answer and update statistics."""
     user_id = get_current_user_id()
     data = request.get_json()
-    entry = VocabEntry.query.filter_by(user_id=user_id, latin_word=data['verb']).first_or_404()
-    current_round = QuizRound.query.filter(QuizRound.user_id == user_id, QuizRound.finished_at.is_(None)).order_by(QuizRound.id.desc()).first_or_404()
 
-    is_correct = data['category'] == entry.flexion_type
-    qa = QuizAnswer(quiz_round_id=current_round.id, vocab_entry_id=entry.id, was_correct=is_correct)
-    db.session.add(qa)
-    entry.total_answers += 1
-    if is_correct: entry.correct_answers += 1
-    entry.accuracy_percent = (entry.correct_answers / entry.total_answers) * 100
+    vocab_entry = VocabEntry.query.filter_by(
+        user_id=user_id,
+        latin_word=data['verb']
+    ).first_or_404()
+
+    quiz_round = get_active_quiz_round(user_id)
+    if not quiz_round:
+        return jsonify({"error": "No active quiz"}), 404
+
+    is_correct = data['category'] == vocab_entry.flexion_type
+
+    quiz_answer = QuizAnswer(
+        quiz_round_id=quiz_round.id,
+        vocab_entry_id=vocab_entry.id,
+        was_correct=is_correct
+    )
+    db.session.add(quiz_answer)
+
+    vocab_entry.total_answers += 1
+    if is_correct:
+        vocab_entry.correct_answers += 1
+    vocab_entry.accuracy_percent = (
+            (vocab_entry.correct_answers / vocab_entry.total_answers) * 100
+    )
+
     db.session.commit()
 
-    return jsonify({"correct": is_correct, "score": entry.accuracy_percent,
-                    "message": "Richtig!" if is_correct else "Falsch!"})
+    return jsonify({
+        "correct": is_correct,
+        "score": round(vocab_entry.accuracy_percent, 1),
+        "message": "Richtig!" if is_correct else "Falsch!"
+    })
+
 
 @quiz_bp.route('/nouns/start', methods=['POST'])
-def nouns_start():
-    """Start noun sorting quiz (random 3-7)."""
+def nouns_start_quiz():
+    """Start noun declension type sorting quiz."""
     user_id = get_current_user_id()
-    random_length = random.randint(3, 7)
-    qr = QuizRound(user_id=user_id, random_length=random_length, asked_count=0)
-    db.session.add(qr)
+    quiz_length = random.randint(3, 7)
+
+    quiz_round = QuizRound(
+        user_id=user_id,
+        random_length=quiz_length,
+        asked_count=0
+    )
+    db.session.add(quiz_round)
     db.session.commit()
-    return jsonify({'quiz_round_id': qr.id, 'target_length': random_length})
+
+    return jsonify({
+        'quiz_round_id': quiz_round.id,
+        'target_length': quiz_length
+    })
+
 
 @quiz_bp.route('/nouns/next')
-def nouns_next():
+def nouns_next_question():
     """
-    Next noun for declension sorting.
-    Same length/adaptive logic as verbs.
+    Serve next noun for declension type identification.
+
+    Filters for nouns with defined flexion_type, excludes previously asked.
     """
     user_id = get_current_user_id()
-    current_round = QuizRound.query.filter(
-        QuizRound.user_id == user_id, QuizRound.finished_at.is_(None)
-    ).order_by(QuizRound.id.desc()).first()
-    if not current_round:
+    quiz_round = get_active_quiz_round(user_id)
+
+    if not quiz_round:
         return jsonify({"error": "No active noun quiz"}), 404
 
-    if current_round.asked_count >= current_round.random_length:
-        current_round.finished_at = datetime.utcnow()
+    if quiz_round.asked_count >= quiz_round.random_length:
+        quiz_round.finished_at = datetime.utcnow()
         db.session.commit()
-        return jsonify({"error": f"Noun quiz complete! ({current_round.asked_count}/{current_round.random_length})"}), 404
+        return jsonify({
+            "error": f"Noun quiz complete! ({quiz_round.asked_count}/{quiz_round.random_length})"
+        }), 404
 
-    asked_ids = db.session.query(QuizAnswer.vocab_entry_id).filter(
-        QuizAnswer.quiz_round_id == current_round.id).subquery()
+    asked_subquery = db.session.query(QuizAnswer.vocab_entry_id).filter(
+        QuizAnswer.quiz_round_id == quiz_round.id
+    ).subquery()
 
-    noun = VocabEntry.query.filter(
-        VocabEntry.user_id == user_id, VocabEntry.word_type == "Nomen",
-        VocabEntry.flexion_type.isnot(None), ~VocabEntry.id.in_(asked_ids)
+    noun_entry = VocabEntry.query.filter(
+        VocabEntry.user_id == user_id,
+        VocabEntry.word_type == "Nomen",
+        VocabEntry.flexion_type.isnot(None),
+        ~VocabEntry.id.in_(asked_subquery)
     ).order_by(func.random()).first()
 
-    if not noun:
-        current_round.finished_at = datetime.utcnow()
+    if not noun_entry:
+        quiz_round.finished_at = datetime.utcnow()
         db.session.commit()
-        return jsonify({"error": f"All nouns asked ({current_round.asked_count}/{current_round.random_length})"}), 404
+        return jsonify({
+            "error": f"All nouns asked ({quiz_round.asked_count}/{quiz_round.random_length})"
+        }), 404
 
-    current_round.asked_count += 1
+    quiz_round.asked_count += 1
     db.session.commit()
-    return jsonify({'noun': noun.latin_word, 'correct_category': noun.flexion_type})
+
+    return jsonify({
+        'noun': noun_entry.latin_word,
+        'correct_category': noun_entry.flexion_type
+    })
+
 
 @quiz_bp.route('/nouns/answer', methods=['POST'])
-def nouns_answer():
-    """Submit noun category answer (mirror verbs)."""
+def nouns_submit_answer():
+    """Process noun declension type answer and update statistics."""
     user_id = get_current_user_id()
     data = request.get_json()
-    entry = VocabEntry.query.filter_by(user_id=user_id, latin_word=data['noun']).first_or_404()
-    current_round = QuizRound.query.filter(QuizRound.user_id == user_id, QuizRound.finished_at.is_(None)).order_by(QuizRound.id.desc()).first_or_404()
 
-    is_correct = data['category'] == entry.flexion_type
-    qa = QuizAnswer(quiz_round_id=current_round.id, vocab_entry_id=entry.id, was_correct=is_correct)
-    db.session.add(qa)
-    entry.total_answers += 1
-    if is_correct: entry.correct_answers += 1
-    entry.accuracy_percent = (entry.correct_answers / entry.total_answers) * 100
+    vocab_entry = VocabEntry.query.filter_by(
+        user_id=user_id,
+        latin_word=data['noun']
+    ).first_or_404()
+
+    quiz_round = get_active_quiz_round(user_id)
+    if not quiz_round:
+        return jsonify({"error": "No active quiz"}), 404
+
+    is_correct = data['category'] == vocab_entry.flexion_type
+
+    quiz_answer = QuizAnswer(
+        quiz_round_id=quiz_round.id,
+        vocab_entry_id=vocab_entry.id,
+        was_correct=is_correct
+    )
+    db.session.add(quiz_answer)
+
+    vocab_entry.total_answers += 1
+    if is_correct:
+        vocab_entry.correct_answers += 1
+    vocab_entry.accuracy_percent = (
+            (vocab_entry.correct_answers / vocab_entry.total_answers) * 100
+    )
+
     db.session.commit()
 
-    return jsonify({"correct": is_correct, "score": entry.accuracy_percent,
-                    "message": "Richtig!" if is_correct else "Falsch!"})
+    return jsonify({
+        "correct": is_correct,
+        "score": round(vocab_entry.accuracy_percent, 1),
+        "message": "Richtig!" if is_correct else "Falsch!"
+    })
+
 
 @quiz_bp.post("/finish")
 def finish_quiz():
-    """Manually finish round (JS fallback)."""
+    """Manually complete active quiz round."""
     data = request.get_json()
     quiz_round_id = data.get("quiz_round_id")
-    qr = QuizRound.query.get_or_404(quiz_round_id)
-    qr.finished_at = datetime.utcnow()
+
+    quiz_round = QuizRound.query.get_or_404(quiz_round_id)
+    quiz_round.finished_at = datetime.utcnow()
     db.session.commit()
+
     return jsonify({"status": "ok"})

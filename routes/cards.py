@@ -3,15 +3,25 @@ from flask_login import current_user
 from extensions import db
 from models import UserCard, Card, VocabEntry
 
-cards_bp = Blueprint("cards", __name__)
+cards_bp = Blueprint("cards", __name__, url_prefix="/api/cards")
+
 
 def get_current_user_id():
-    """Fallback to demo user ID=1 if not logged in"""
+    """Return current user's ID or fallback to demo user ID=1 if not authenticated."""
     return getattr(current_user, 'id', 1)
 
-# returns each card for current user
+
 @cards_bp.get("/")
 def list_cards():
+    """
+    Retrieve all bronze rarity cards for the current user.
+
+    Joins UserCard, Card, and VocabEntry models to fetch card details
+    including associated Latin-German vocabulary data.
+
+    Returns:
+        JSON list of user cards with rarity, title, description, image, and vocab info.
+    """
     user_id = get_current_user_id()
     user_cards = (
         db.session.query(UserCard, Card, VocabEntry)
