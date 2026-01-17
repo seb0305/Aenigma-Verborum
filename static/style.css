@@ -572,3 +572,47 @@ input:focus {
   #topBar h1 { font-size: 20px; }
   .nav-grid { grid-template-columns: 1fr; }
 }
+
+.result-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    padding: 16px 0;
+}
+
+.import-btn {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    width: 100%;
+    margin-top: 12px;
+    transition: all 0.2s;
+}
+
+.import-btn:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+.loading, .error, .no-results {
+    text-align: center;
+    padding: 40px;
+    font-size: 1.1em;
+}
+
+.loading { color: #64748b; }
+.error { color: #dc2626; }
+.no-results { color: #64748b; }

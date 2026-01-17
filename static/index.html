@@ -15,7 +15,7 @@
 ">
   <button id="loginBtn" style="background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">🔐 Login</button>
 
-  <h1 style="margin: 0; font-size: 24px;">Aenigma Verborum</h1>
+  <h1 style="margin: 0; font-size: 24px; position: absolute; left: 50%; transform: translateX(-50%);">Aenigma Verborum</h1>
 
   <div id="userStatus" style="padding: 8px 12px; background: #ef4444; border-radius: 5px;">Guest</div>
 </header>
@@ -38,11 +38,41 @@
 
   <h1>Aenigma Prototype</h1>
 
+  <button id="btnHomeLanding" class="nav-btn">🏛️ Home</button>
   <button id="btnHomeVocab" class="nav-btn">My Vocab Book</button>
   <button id="btnHomeQuiz" class="nav-btn">Start Multiple Choice Quiz</button>
   <button id="btnHomeSorting" class="nav-btn">Start Verb Sorting Quiz</button>
   <button id="btnHomeNounSorting" class="nav-btn">Start Noun Sorting Quiz</button>
   <button id="btnHomeCards" class="nav-btn">My Cards</button>
+
+  <!------------- Landing section ----------------- -->
+
+<section id="landingSection" style="display:block;">
+  <div class="landing-hero" style="text-align:center; padding:80px 20px 40px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white; min-height: 100vh;">
+    <h1 style="font-size: 3em; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">Aenigma Verborum</h1>
+    <p style="font-size: 1.2em; max-width: 600px; margin: 0 auto 40px; opacity: 0.9;">
+      Master Latin vocabulary through gamified quizzes and flashcards.
+    </p>
+
+    <!-- Search Bar -->
+    <div style="max-width: 500px; margin: 0 auto 40px;">
+      <div style="display: flex; gap: 10px; background: white; border-radius: 25px; padding: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+        <input id="vocabSearchInput" placeholder="Search Latin word (e.g. amo)..." style="flex:1; padding: 15px 20px; border: none; border-radius: 20px; font-size: 16px; outline: none;">
+        <button id="vocabSearchBtn" class="nav-btn" style="padding: 15px 25px; white-space: nowrap;">🔍 Search</button>
+      </div>
+    </div>
+
+    <!-- Dynamic Vocab Results -->
+    <div id="landingVocabInfo" class="vocab-spotlight" style="background: rgba(255,255,255,0.95); border-radius: 12px; padding: 30px; max-width: 500px; margin: 0 auto; color: #1e293b; display: none;">
+      <div id="searchLoading" style="text-align: center; color: #64748b;">Searching...</div>
+      <div id="searchResults"></div>
+    </div>
+
+    <div style="margin-top: 50px;">
+      <button id="btnStartFromLanding" class="nav-btn" style="font-size: 1.1em; padding: 18px 40px; background: #3b82f6;">Start Quiz →</button>
+    </div>
+  </div>
+</section>
 
 
   <!------------- Vocab section ----------------- -->
