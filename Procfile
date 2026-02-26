@@ -1,1 +1,1 @@
-﻿web: gunicorn aenigma:app
+﻿web: gunicorn app:app

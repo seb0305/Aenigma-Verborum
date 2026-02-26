@@ -20,9 +20,13 @@
 ## 🏗️ Tech Stack
 
 Frontend: Vanilla HTML/CSS/JS + Drag & Drop API
+
 Backend: Flask + SQLAlchemy + SQLite
+
 AI: OpenAI GPT-4.1-mini (wrong answer generation)
+
 Scraping: FragCaesar.de (true German meanings for Latin words)
+
 Deployment: Ready for Render/Heroku/Vercel
 
 
@@ -45,34 +49,39 @@ flask run
 ## 🎮 How to Play
 1. Build Your Vocab Book
 
-Vocab → Add "amare" (lieben) → Verb → I-Konjugation
-Vocab → Add "currere" (laufen) → Verb → III-Konjugation
+    Vocab → Add "amare" (lieben) → Verb → I-Konjugation
+    Vocab → Add "currere" (laufen) → Verb → III-Konjugation
 2. Adaptive Quiz Mode
-Focuses on weak words automatically
 
-4 options: 1 correct + 3 AI-generated wrong answers
+    Focuses on weak words automatically
 
-Tracks accuracy per word
+    4 options: 1 correct + 3 AI-generated wrong answers
+
+    Tracks accuracy per word
 
 3. Verb Sorting Challenge
 
-Drag "amō, amās, amat" → I-Konjugation
-Drag "currō, curris, currit" → III-Konjugation
-Answer all verbs once per round → Quiz Complete!
+    Drag "amō, amās, amat" → I-Konjugation
+
+    Drag "currō, curris, currit" → III-Konjugation
+
+    Answer all verbs once per round → Quiz Complete!
 4. Earn Bronze Cards
-text
+```text
 90%+ accuracy → "Bronze card for amare unlocked!"
+```
 View collection in Cards tab
 
 ## 🧠 Adaptive Algorithm
 
-Weak Word = accuracy < 95% OR total_answers < 100
-Quiz prioritizes weakest 10 words
-True meanings = DB translation + FragCaesar scrapes
-AI distractors = GPT-4.1-mini (filtered: never true meanings)
+- Weak Word = accuracy < 95% OR total_answers < 100
+- Quiz prioritizes weakest 10 words
+- True meanings = DB translation + FragCaesar scrapes
+- AI distractors = GPT-4.1-mini (filtered: never true meanings)
 
 ## 📊 Database Schema
 
+```mermaid
 erDiagram
     User ||--o{ VocabEntry : owns
     User ||--o{ QuizRound : "starts"
@@ -81,23 +90,27 @@ erDiagram
     VocabEntry ||--o{ Card : "unlocks"
     User ||--o{ UserCard : "collects"
 
+```
 ## 🔮 Future Roadmap
- Silver/Gold cards (95%/99% accuracy)
+- Silver/Gold cards (95%/99% accuracy)
 
- Noun declension sorting game
+- Noun declension sorting game
 
- Leaderboards & daily challenges
+- Leaderboards & daily challenges
 
- Image generation for cards (DALL-E 3)
+- Image generation for cards (DALL-E 3)
 
- Mobile PWA support
+- Mobile PWA support
 
- Multi-language (Latin-English, Latin-French)
+- Multi-language (Latin-English, Latin-French)
 
-🐛 Known Issues (Fixed)
+## 🐛 Known Issues (Fixed)
 ✅ Infinite verb sorting → QuizAnswer tracking per round
+
 ✅ Model column mismatches → quiz_round_id/vocab_entry_id
+
 ✅ AI duplicate answers → Strict filtering + retry logic
+
 ✅ Bronze card logic → 90% threshold + cleanup
 
 ## 📝 Development
@@ -114,11 +127,11 @@ curl http://localhost:5000/api/quiz/verbs/next
 ```
 
 ## 🙌 Contributing
-Fork & clone
+- Fork & clone
 
-Add Latin verbs to VocabEntry (especially with flexion_type)
+- Add Latin verbs to VocabEntry (especially with flexion_type)
 
-Test sorting quiz → Submit PR
+- Test sorting quiz → Submit PR
 
 Bonus: Improve AI prompts or card designs!
 

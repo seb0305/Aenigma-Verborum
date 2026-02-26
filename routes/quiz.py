@@ -49,7 +49,7 @@ def build_true_meanings_set_from_frag_caesar_and_db(correct: str, latin_word: st
         true_meanings.add(normalize_german_strict(correct))
 
     try:
-        extra_meanings = frag_caesar_crawl4ai.get_german_meanings(latin_word) or []
+        extra_meanings = frag_caesar_bs4.get_german_meanings(latin_word) or []
     except Exception as ex:
         current_app.logger.error("FragCaesar error for %s: %s", latin_word, ex)
         extra_meanings = []
